@@ -1,4 +1,21 @@
-# ForgeItems
+<p align="center">
+  <img src="assets/logo.webp" width="160" alt="ForgeItems logo">
+</p>
+
+<h1 align="center">ForgeItems</h1>
+
+<p align="center"><i>YAML-defined custom items — 14 activators, 11 action verbs, cooldowns, soulbound, custom durability.</i></p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-ff7b2e?style=for-the-badge" alt="version 1.0.0">
+  <img src="https://img.shields.io/badge/Paper-26.3-2f9e6e?style=for-the-badge" alt="Paper 26.3">
+  <img src="https://img.shields.io/badge/Java-25-f89820?style=for-the-badge" alt="Java 25">
+  <img src="https://img.shields.io/badge/14_activators-2563eb?style=for-the-badge" alt="14 activators">
+  <img src="https://img.shields.io/badge/11_action_verbs-b565d8?style=for-the-badge" alt="11 action verbs">
+  <img src="https://img.shields.io/badge/dependencies-zero-6b7280?style=for-the-badge" alt="zero dependencies">
+</p>
+
+---
 
 YAML-defined custom items for Paper. Define items in plain YAML files — display name, lore, enchantments, attribute modifiers, durability rules — and attach **activators** that fire on gameplay events and run **actions** (lightning, explosions, potions, messages, console commands, sounds, and more). An original implementation with zero runtime dependencies beyond the Paper API.
 
@@ -172,3 +189,7 @@ Output: `ForgeItems-1.0.0.jar`.
 
 - No deprecated Paper/Bukkit APIs anywhere in the codebase or docs.
 - Nullness is explicit: every package is `@NotNullByDefault` (JetBrains annotations, already on the compile classpath), with `@Nullable` on the specific parameters and returns that can legitimately be null (registry lookups, PDC reads, optional YAML keys).
+
+---
+
+<p align="center"><i>Part of the <a href="https://github.com/ChristopherIrwin">Forge</a> plugin suite — original implementations, zero dependencies.</i></p>
