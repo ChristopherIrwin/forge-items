@@ -14,5 +14,5 @@ cp -r "$ROOT/build/classes"/. "$ROOT/build/stage"/
 cp "$ROOT/src/main/resources/plugin.yml" "$ROOT/src/main/resources/config.yml" "$ROOT/src/main/resources/sets.yml" "$ROOT/src/main/resources/drops.yml" "$ROOT/build/stage"/
 mkdir -p "$ROOT/build/stage/items"
 cp "$ROOT/src/main/resources/items/"*.yml "$ROOT/build/stage/items"/
-( cd "$ROOT/build/stage" && $JAR --create --file "$ROOT/ForgeItems-3.0.0.jar" . )
-echo "built $ROOT/ForgeItems-3.0.0.jar"
+( cd "$ROOT/build/stage" && $JAR --create --file "$ROOT/ForgeItems-4.0.0.jar" . )
+echo "built $ROOT/ForgeItems-4.0.0.jar"

@@ -37,4 +37,9 @@ public final class TextUtil {
         }
         return parse(resolved);
     }
+
+    /** Serializes a component back to a MiniMessage string. Never returns null. */
+    public static String stringify(Component component) {
+        return MINI_MESSAGE.serialize(component);
+    }
 }

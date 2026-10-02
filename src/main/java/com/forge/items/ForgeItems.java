@@ -17,6 +17,8 @@ public final class ForgeItems extends JavaPlugin {
     private ItemLevelManager levels;
     private DropManager drops;
     private ItemBrowserGui browser;
+    private ChatInput chatInput;
+    private ItemEditorGui editor;
     private int itemCount;
     private int setCount;
     private int dropCount;
@@ -33,6 +35,8 @@ public final class ForgeItems extends JavaPlugin {
         setBonuses = new SetBonusManager(this, registry, actions, cooldowns);
         drops = new DropManager(registry);
         browser = new ItemBrowserGui(this);
+        chatInput = new ChatInput(this);
+        editor = new ItemEditorGui(this, chatInput);
 
         reloadItems();
 
@@ -41,6 +45,8 @@ public final class ForgeItems extends JavaPlugin {
         pm.registerEvents(setBonuses, this);
         pm.registerEvents(drops, this);
         pm.registerEvents(browser, this);
+        pm.registerEvents(chatInput, this);
+        pm.registerEvents(editor, this);
         var command = new ForgeItemsCommand(this);
         var cmd = getCommand("forgeitems");
         if (cmd != null) {
@@ -50,8 +56,9 @@ public final class ForgeItems extends JavaPlugin {
         listener.startLoopTask();
         setBonuses.start();
         mana.start();
+        chatInput.start();
 
-        getLogger().info("ForgeItems 3.0.0 enabled with " + itemCount + " item(s), "
+        getLogger().info("ForgeItems 4.0.0 enabled with " + itemCount + " item(s), "
                 + setCount + " set(s) and " + dropCount + " mob drop(s).");
     }
 
@@ -111,6 +118,7 @@ public final class ForgeItems extends JavaPlugin {
     public int setCount() { return setCount; }
     public int dropCount() { return dropCount; }
     public ItemBrowserGui browser() { return browser; }
+    public ItemEditorGui editor() { return editor; }
 
     /** Plain-text version of an item's display name (for messages). */
     public String plainName(CustomItem item) {

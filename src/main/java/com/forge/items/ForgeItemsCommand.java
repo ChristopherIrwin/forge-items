@@ -11,7 +11,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-/** /forgeitems reload | give <id> [player] [amount] | list | menu */
+/** /forgeitems reload | give <id> [player] [amount] | list | menu | edit <id> | create <id> | delete <id> */
 public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
     private final ForgeItems plugin;
 
@@ -22,7 +22,7 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list|menu>"));
+            sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list|menu|edit|create|delete>"));
             return true;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -30,7 +30,10 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
             case "list" -> list(sender);
             case "give" -> give(sender, args);
             case "menu" -> menu(sender);
-            default -> sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list|menu>"));
+            case "edit" -> edit(sender, args);
+            case "create" -> create(sender, args);
+            case "delete" -> delete(sender, args);
+            default -> sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list|menu|edit|create|delete>"));
         }
         return true;
     }
@@ -68,6 +71,85 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
             return;
         }
         plugin.browser().open(player, 0);
+    }
+
+    private void edit(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(TextUtil.parse("<red>This command is for players only."));
+            return;
+        }
+        if (!sender.hasPermission("forgeitems.edit")) {
+            sender.sendMessage(plugin.prefixed("messages.no-permission"));
+            return;
+        }
+        if (args.length < 2) {
+            sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems edit <id>"));
+            return;
+        }
+        CustomItem item = plugin.registry().get(args[1]);
+        if (item == null) {
+            sender.sendMessage(plugin.prefixed("messages.unknown-item", "id", args[1]));
+            return;
+        }
+        plugin.editor().openItem(player, item.id());
+    }
+
+    private void create(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(TextUtil.parse("<red>This command is for players only."));
+            return;
+        }
+        if (!sender.hasPermission("forgeitems.edit")) {
+            sender.sendMessage(plugin.prefixed("messages.no-permission"));
+            return;
+        }
+        if (args.length < 2 || !args[1].matches("[a-z0-9_]+")) {
+            sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems create <id> <gray>(lowercase, numbers, underscores; hold the base item)"));
+            return;
+        }
+        String id = args[1].toLowerCase(Locale.ROOT);
+        if (plugin.registry().get(id) != null) {
+            sender.sendMessage(plugin.prefixedOr("messages.editor-id-taken",
+                    "<red>An item with id <white><id> <red>already exists.", "id", id));
+            return;
+        }
+        ItemStack held = player.getInventory().getItemInMainHand();
+        if (held.getType().isAir()) {
+            sender.sendMessage(plugin.prefixedOr("messages.editor-empty-hand",
+                    "<red>Hold an item in your main hand first."));
+            return;
+        }
+        if (!plugin.registry().createFromHeld(id, held)) {
+            sender.sendMessage(plugin.prefixedOr("messages.editor-create-failed",
+                    "<red>Could not create item <white><id><red>.", "id", id));
+            return;
+        }
+        plugin.reloadItems();
+        plugin.editor().openItem(player, id);
+    }
+
+    private void delete(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("forgeitems.edit")) {
+            sender.sendMessage(plugin.prefixed("messages.no-permission"));
+            return;
+        }
+        if (args.length < 2) {
+            sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems delete <id>"));
+            return;
+        }
+        CustomItem item = plugin.registry().get(args[1]);
+        if (item == null) {
+            sender.sendMessage(plugin.prefixed("messages.unknown-item", "id", args[1]));
+            return;
+        }
+        if (plugin.registry().deleteItem(item.id())) {
+            plugin.reloadItems();
+            sender.sendMessage(plugin.prefixedOr("messages.editor-deleted",
+                    "<red>Deleted item <white><id><red>.", "id", item.id()));
+        } else {
+            sender.sendMessage(plugin.prefixedOr("messages.editor-delete-failed",
+                    "<red>Could not delete <white><id><red>.", "id", item.id()));
+        }
     }
 
     private void give(CommandSender sender, String[] args) {
@@ -133,9 +215,13 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 1) {
-            return filter(List.of("reload", "give", "list", "menu"), args[0]);
+            return filter(List.of("reload", "give", "list", "menu", "edit", "create", "delete"), args[0]);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
+            return filter(new ArrayList<>(plugin.registry().ids()), args[1]);
+        }
+        if (args.length == 2
+                && (args[0].equalsIgnoreCase("edit") || args[0].equalsIgnoreCase("delete"))) {
             return filter(new ArrayList<>(plugin.registry().ids()), args[1]);
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("give")) {

@@ -46,9 +46,20 @@ public final class ActionExecutor {
         this.log = plugin.getLogger();
     }
 
+    /** True when the verb is a known action verb. */
+    public static boolean isKnownVerb(String verb) {
+        return switch (verb.toLowerCase(Locale.ROOT)) {
+            case "damage", "heal", "launch", "lightning", "explode", "potion",
+                 "message", "broadcast", "command", "cooldown", "sound",
+                 "particle", "title", "subtitle", "actionbar", "feed",
+                 "extinguish", "sudo", "spawnmob", "mana", "giveitem",
+                 "ignite", "freeze", "clearpotion", "fly" -> true;
+            default -> false;
+        };
+    }
+
     /** Checks action lines for unknown verbs; returns true if all are known. */
-    public boolean validate(String itemId, String activatorName, java.util.List<String> actions) {
-        boolean ok = true;
+    public boolean validate(String itemId, String activatorName, java.util.List<String> actions) {        boolean ok = true;
         for (String line : actions) {
             String verb = line.trim().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
             switch (verb) {

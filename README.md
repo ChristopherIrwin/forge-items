@@ -4,12 +4,13 @@
 
 <h1 align="center">ForgeItems</h1>
 
-<p align="center"><i>YAML-defined custom items — 25 activators, 25 action verbs, mana, item levels, mob drops, sets, recipes, browser GUI, soulbound, custom durability.</i></p>
+<p align="center"><i>YAML-defined custom items — in-game editor, 25 activators, 25 action verbs, mana, item levels, mob drops, sets, recipes, browser GUI.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.0.0-ff7b2e?style=for-the-badge" alt="version 3.0.0">
+  <img src="https://img.shields.io/badge/version-4.0.0-ff7b2e?style=for-the-badge" alt="version 4.0.0">
   <img src="https://img.shields.io/badge/Paper-26.3-2f9e6e?style=for-the-badge" alt="Paper 26.3">
   <img src="https://img.shields.io/badge/Java-25-f89820?style=for-the-badge" alt="Java 25">
+  <img src="https://img.shields.io/badge/in--game_editor-10b981?style=for-the-badge" alt="in-game editor">
   <img src="https://img.shields.io/badge/25_activators-2563eb?style=for-the-badge" alt="25 activators">
   <img src="https://img.shields.io/badge/25_action_verbs-b565d8?style=for-the-badge" alt="25 action verbs">
   <img src="https://img.shields.io/badge/mana_+_levels-0ea5e9?style=for-the-badge" alt="mana and levels">
@@ -25,7 +26,8 @@ YAML-defined custom items for Paper. Define items in plain YAML files — displa
 
 ## Features
 
-- **YAML item definitions** in `plugins/ForgeItems/items/*.yml` — no code needed to add items
+- **In-game item editor** (`/fitems edit <id>`, `/fitems create <id>`): full GUI editor — name, lore, material, rarity, set, enchantments, flags, and a complete activator workshop (trigger picker, cooldown/chance/mana, actions, commands, effects) with chat-based text entry. Never touch YAML again.
+- **YAML item definitions** in `plugins/ForgeItems/items/*.yml` — still there when you want them; the editor round-trips the raw YAML so hand edits survive
 - **25 activators** (triggers): right/left/shift-right click, hitting/killing entities, block break/place, taking damage, dying, equip/unequip, consuming, item drop/pickup, projectile launch/hit, fishing catches, sneak toggle/start, sprint start, glide start, join/respawn/world-change, and a periodic `LOOP` trigger
 - **25 built-in action verbs** plus per-activator console commands, a direct message, and potion effects
 - **Mana system**: per-player mana pool with regen and action-bar display; activators cost mana via `mana-cost`
@@ -52,7 +54,7 @@ YAML-defined custom items for Paper. Define items in plain YAML files — displa
 
 ## Installation
 
-Drop `ForgeItems-3.0.0.jar` into your server's `plugins/` folder and restart. Five example items (`thunder_hammer`, `frost_bow`, `guardian_chestplate`, `ember_blade`, `ember_chestplate`) are generated into `plugins/ForgeItems/items/` on first run, along with an example `sets.yml` (the Ember Set) and `drops.yml` (ember items from zombies/blazes).
+Drop `ForgeItems-4.0.0.jar` into your server's `plugins/` folder and restart. Five example items (`thunder_hammer`, `frost_bow`, `guardian_chestplate`, `ember_blade`, `ember_chestplate`) are generated into `plugins/ForgeItems/items/` on first run, along with an example `sets.yml` (the Ember Set) and `drops.yml` (ember items from zombies/blazes).
 
 ## Commands
 
@@ -62,6 +64,9 @@ Drop `ForgeItems-3.0.0.jar` into your server's `plugins/` folder and restart. Fi
 | `/forgeitems give <id> [player] [amount]` | Give a custom item (amount defaults to 1, clamped 1–64) | `forgeitems.give` |
 | `/forgeitems list` | List all loaded item ids and names | `forgeitems.list` |
 | `/forgeitems menu` (`/fitems menu`) | Open the paginated item browser GUI | `forgeitems.menu` |
+| `/forgeitems edit <id>` | Open the in-game editor for an item | `forgeitems.edit` |
+| `/forgeitems create <id>` | Create an item from your held item, then edit it | `forgeitems.edit` |
+| `/forgeitems delete <id>` | Delete an item's file | `forgeitems.edit` |
 
 ## Permissions
 
@@ -71,6 +76,19 @@ Drop `ForgeItems-3.0.0.jar` into your server's `plugins/` folder and restart. Fi
 | `forgeitems.give` | Give custom items to players (also click-to-take in the browser) | op |
 | `forgeitems.list` | List available custom items | true |
 | `forgeitems.menu` | Open the item browser GUI | true |
+| `forgeitems.edit` | Create, edit and delete items in-game | op |
+
+## In-game editor
+
+Hold the item you want to base things on and run `/fitems create <id>` — the material, name, lore, enchantments, and unbreakable flag are copied into a new definition and the editor opens. `/fitems edit <id>` opens any existing item.
+
+The editor is three screens:
+
+- **Item screen**: live preview plus buttons for name, lore (add/remove/clear), material (copies your held item), rarity (cycles), set (cycles), enchantments (copies your held item's, or clears), use permission, unbreakable, keep-on-death, max stack size, usage limit, global cooldown, and consumable. The bottom row lists activators (left-click to edit, right-click to delete), adds new ones, saves, and deletes the item (two-click confirm).
+- **Activator screen**: trigger picker, cooldown, chance, mana cost, cancel-event and consume-use toggles, message, plus editable action/command/effect lists (click to remove, plus-button to add via chat — verbs and effects are validated).
+- **Trigger picker**: all 25 triggers with descriptions.
+
+Every change writes `items/<id>.yml` and reloads immediately, so the preview slot always shows the live item. Text entry happens in chat — type `cancel` to abort any prompt.
 
 ## Configuration
 
@@ -298,7 +316,7 @@ The build uses `javac` directly (the Gradle daemon cannot run in this sandbox):
 - Dependencies from `~/workspace/.toolchains/paper-deps/` (Paper API 26.3.build.35-alpha)
 - Compiled with `-Werror -Xlint:deprecation`, so warnings fail the build
 
-Output: `ForgeItems-3.0.0.jar`.
+Output: `ForgeItems-4.0.0.jar`.
 
 ## Code quality
 

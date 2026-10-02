@@ -51,6 +51,11 @@ public final class ItemRegistry {
     private final Map<String, CustomItem> items = new HashMap<>();
     private final Map<String, SetBonus> setBonuses = new HashMap<>();
     private final Set<NamespacedKey> recipeKeys = new HashSet<>();
+    /** Raw YAML per item id — what the in-game editor mutates. */
+    private final Map<String, YamlConfiguration> rawConfigs = new HashMap<>();
+    /** Source file per item id. */
+    private final Map<String, java.io.File> itemFiles = new HashMap<>();
+    private java.io.File itemsDir;
 
     public ItemRegistry(Plugin plugin) {
         this.plugin = plugin;
@@ -65,6 +70,9 @@ public final class ItemRegistry {
     /** (Re)loads every items/*.yml file. Returns the number of items loaded. */
     public int loadAll(java.io.File itemsDir) {
         items.clear();
+        rawConfigs.clear();
+        itemFiles.clear();
+        this.itemsDir = itemsDir;
         if (!itemsDir.exists() && !itemsDir.mkdirs()) {
             log.warning("Could not create items directory: " + itemsDir);
         }
@@ -75,7 +83,8 @@ public final class ItemRegistry {
         int loaded = 0;
         for (java.io.File file : files) {
             try {
-                CustomItem item = parse(YamlConfiguration.loadConfiguration(file), file.getName());
+                YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+                CustomItem item = parse(cfg, file.getName());
                 if (item == null) {
                     continue;
                 }
@@ -84,12 +93,85 @@ public final class ItemRegistry {
                     continue;
                 }
                 items.put(item.id(), item);
+                rawConfigs.put(item.id(), cfg);
+                itemFiles.put(item.id(), file);
                 loaded++;
             } catch (Exception e) {
                 log.warning("Failed to load item file " + file.getName() + ": " + e.getMessage());
             }
         }
         return loaded;
+    }
+
+    /** The live raw YAML for an item (what the in-game editor mutates), or null. */
+    public @Nullable YamlConfiguration rawConfig(String id) {
+        return id == null ? null : rawConfigs.get(id.toLowerCase(Locale.ROOT));
+    }
+
+    /** Writes the (possibly edited) raw config back to its file. */
+    public boolean saveItem(String id) {
+        YamlConfiguration cfg = rawConfig(id);
+        java.io.File file = id == null ? null : itemFiles.get(id.toLowerCase(Locale.ROOT));
+        if (cfg == null || file == null) {
+            return false;
+        }
+        try {
+            cfg.save(file);
+            return true;
+        } catch (java.io.IOException e) {
+            log.warning("Could not save item '" + id + "': " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Deletes an item's file. Callers should reload afterwards. */
+    public boolean deleteItem(String id) {
+        java.io.File file = id == null ? null : itemFiles.remove(id.toLowerCase(Locale.ROOT));
+        rawConfigs.remove(id == null ? null : id.toLowerCase(Locale.ROOT));
+        return file != null && file.delete();
+    }
+
+    /**
+     * Creates a new item definition from the held stack (material, name, lore,
+     * enchantments, unbreakable). Returns false when the id is taken or the
+     * hand is empty. Callers should reload afterwards.
+     */
+    public boolean createFromHeld(String id, ItemStack held) {
+        String key = id.toLowerCase(Locale.ROOT);
+        if (items.containsKey(key) || held.getType().isAir() || itemsDir == null) {
+            return false;
+        }
+        YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("id", key);
+        cfg.set("material", held.getType().name());
+        var meta = held.getItemMeta();
+        if (meta != null) {
+            if (meta.hasDisplayName() && meta.displayName() != null) {
+                cfg.set("name", TextUtil.stringify(meta.displayName()));
+            }
+            if (meta.hasLore() && meta.lore() != null) {
+                List<String> lore = new ArrayList<>();
+                for (Component line : meta.lore()) {
+                    lore.add(TextUtil.stringify(line));
+                }
+                cfg.set("lore", lore);
+            }
+            for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
+                cfg.set("enchantments." + entry.getKey().getKey().toString(), entry.getValue());
+            }
+            if (meta.isUnbreakable()) {
+                cfg.set("unbreakable", true);
+            }
+        }
+        cfg.set("rarity", "COMMON");
+        java.io.File file = new java.io.File(itemsDir, key + ".yml");
+        try {
+            cfg.save(file);
+        } catch (java.io.IOException e) {
+            log.warning("Could not create item file for '" + key + "': " + e.getMessage());
+            return false;
+        }
+        return true;
     }
 
     /** Looks up an item definition by id (case-insensitive); null when unknown or id is null. */
