@@ -1,0 +1,21 @@
+# ForgeItems armor/item sets.
+# Items join a set with "set: <id>" in their item file.
+# Bonuses apply while wearing at least <pieces> pieces of the set.
+sets:
+  ember:
+    name: "<red>Ember Set"
+    bonuses:
+      - pieces: 2
+        effects:
+          - "minecraft:fire_resistance 200 0"
+        message: "<red>Ember Set <gray>(2 pieces): <white>Fire Resistance!"
+        actions:
+          - "particle minecraft:flame 40 0.6 0.05"
+      - pieces: 4
+        effects:
+          - "minecraft:fire_resistance 200 0"
+          - "minecraft:strength 200 1"
+        message: "<gold>Ember Set <gray>(4 pieces): <white>Strength II!"
+        actions:
+          - "particle minecraft:lava 30 0.6 0.05"
+          - "sound minecraft:entity.blaze.ambient 1 1.2"

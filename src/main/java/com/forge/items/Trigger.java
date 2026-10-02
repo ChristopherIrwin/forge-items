@@ -2,7 +2,7 @@ package com.forge.items;
 
 import org.jetbrains.annotations.Nullable;
 
-/** All activator trigger types supported by ForgeItems v1. */
+/** All activator trigger types supported by ForgeItems. */
 public enum Trigger {
     RIGHT_CLICK,
     LEFT_CLICK,
@@ -10,6 +10,7 @@ public enum Trigger {
     HIT_ENTITY,
     KILL_ENTITY,
     BLOCK_BREAK,
+    BLOCK_PLACE,
     TAKE_DAMAGE,
     EQUIP,
     UNEQUIP,
@@ -17,7 +18,14 @@ public enum Trigger {
     PROJECTILE_HIT,
     PROJECTILE_LAUNCH,
     SNEAK_TOGGLE,
-    LOOP;
+    SNEAK_START,
+    ITEM_DROP,
+    ITEM_PICKUP,
+    PLAYER_DEATH,
+    FISH_CAUGHT,
+    LOOP,
+    /** Synthetic marker for set-bonus reward execution; never fired by events. */
+    SET_BONUS;
 
     /** Parses a trigger name from config; returns null and logs nothing (caller warns). */
     public static @Nullable Trigger parse(@Nullable String raw) {

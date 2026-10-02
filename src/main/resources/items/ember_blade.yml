@@ -1,0 +1,33 @@
+id: ember_blade
+material: IRON_SWORD
+name: "<gradient:#ffcf3f:#ff7b2e>Ember Blade</gradient>"
+lore:
+  - "<gray>Right-click: erupt in flame"
+  - "<gray>Part of the <red>Ember Set"
+rarity: EPIC
+set: ember
+enchantments:
+  minecraft:fire_aspect: 2
+  minecraft:sharpness: 3
+max-stack-size: 1
+usage-limit: 500
+recipe:
+  type: shaped
+  shape:
+    - " B "
+    - " B "
+    - " S "
+  ingredients:
+    B: "minecraft:blaze_rod"
+    S: "minecraft:stick"
+activators:
+  erupt:
+    trigger: RIGHT_CLICK
+    cooldown-seconds: 6
+    conditions:
+      sneaking: false
+    actions:
+      - "particle minecraft:flame 40 0.6 0.05"
+      - "sound minecraft:entity.blaze.shoot 1 1.2"
+      - "damage 4"
+    message: "<red>Flame eruption! <gray>(<white>%uses%<gray> uses left)"

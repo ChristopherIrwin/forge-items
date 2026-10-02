@@ -1,9 +1,11 @@
 package com.forge.items;
 
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -17,6 +19,7 @@ public record ActivationContext(
         ItemStack stack,
         @Nullable Entity target,
         @Nullable Location location) {
+    private static final NamespacedKey USES_KEY = new NamespacedKey("forgeitems", "uses_left");
 
     /** Location to use for world effects: explicit location, else target, else player. */
     public Location effectLocation() {
@@ -29,7 +32,10 @@ public record ActivationContext(
         return player.getLocation();
     }
 
-    /** Replaces %player% %target% %x% %y% %z% %world% placeholders. Never returns null. */
+    /**
+     * Replaces %player% %target% %x% %y% %z% %world% %uses% %rarity% %set%
+     * placeholders. Never returns null.
+     */
     public String resolve(@Nullable String raw) {
         if (raw == null) {
             return "";
@@ -41,6 +47,17 @@ public record ActivationContext(
                 .replace("%y%", String.valueOf(loc.getBlockY()))
                 .replace("%z%", String.valueOf(loc.getBlockZ()));
         out = out.replace("%target%", target != null ? target.getName() : player.getName());
+        out = out.replace("%rarity%", item.rarity().pretty());
+        out = out.replace("%set%", item.setId() != null ? item.setId() : "");
+        String uses = "";
+        var meta = stack.getItemMeta();
+        if (meta != null) {
+            Integer left = meta.getPersistentDataContainer().get(USES_KEY, PersistentDataType.INTEGER);
+            if (left != null) {
+                uses = String.valueOf(left);
+            }
+        }
+        out = out.replace("%uses%", uses);
         return out;
     }
 }

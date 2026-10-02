@@ -7,10 +7,13 @@ import java.util.logging.Logger;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
@@ -24,7 +27,11 @@ import org.bukkit.potion.PotionEffectType;
  *   explode &lt;power&gt; | potion &lt;effect&gt; &lt;ticks&gt; &lt;amplifier&gt; |
  *   message &lt;MiniMessage&gt; | broadcast &lt;MiniMessage&gt; |
  *   command &lt;console command&gt; | cooldown &lt;seconds&gt; |
- *   sound &lt;key&gt; [volume] [pitch]
+ *   sound &lt;key&gt; [volume] [pitch] |
+ *   particle &lt;key&gt; [count] [spread] [speed] |
+ *   title &lt;MiniMessage&gt; | subtitle &lt;MiniMessage&gt; | actionbar &lt;MiniMessage&gt; |
+ *   feed [amount] | extinguish | sudo &lt;player command&gt; |
+ *   spawnmob &lt;type&gt; [count]
  * Unknown verbs are logged once as warnings at item-load time (see validate()).
  */
 public final class ActionExecutor {
@@ -41,7 +48,9 @@ public final class ActionExecutor {
             String verb = line.trim().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
             switch (verb) {
                 case "damage", "heal", "launch", "lightning", "explode", "potion",
-                     "message", "broadcast", "command", "cooldown", "sound" -> { /* known */ }
+                     "message", "broadcast", "command", "cooldown", "sound",
+                     "particle", "title", "subtitle", "actionbar", "feed",
+                     "extinguish", "sudo", "spawnmob" -> { /* known */ }
                 default -> {
                     log.warning("Item '" + itemId + "' activator '" + activatorName
                             + "': unknown action '" + verb + "' — it will be skipped at runtime.");
@@ -124,6 +133,55 @@ public final class ActionExecutor {
                     float pitch = args.length > 2 ? (float) parseDouble(args[2], 1.0) : 1.0f;
                     player.playSound(Sound.sound(Key.key(args[0]),
                             net.kyori.adventure.sound.Sound.Source.PLAYER, volume, pitch));
+                }
+                case "particle" -> {
+                    String[] args = rest.split("\\s+");
+                    if (args.length < 1 || args[0].isEmpty()) break;
+                    Particle particle;
+                    try {
+                        String key = args[0].contains(":")
+                                ? args[0].substring(args[0].indexOf(':') + 1) : args[0];
+                        particle = Particle.valueOf(key.toUpperCase(Locale.ROOT));
+                    } catch (IllegalArgumentException e) {
+                        log.warning("Unknown particle '" + args[0] + "' in action '" + line + "'.");
+                        break;
+                    }
+                    int count = args.length > 1 ? parseInt(args[1], 20) : 20;
+                    double spread = args.length > 2 ? parseDouble(args[2], 0.5) : 0.5;
+                    double speed = args.length > 3 ? parseDouble(args[3], 0.1) : 0.1;
+                    player.getWorld().spawnParticle(particle, ctx.effectLocation(),
+                            Math.max(1, count), spread, spread, spread, speed);
+                }
+                case "title" -> player.showTitle(
+                        Title.title(TextUtil.parse(ctx.resolve(rest)), Component.empty()));
+                case "subtitle" -> player.showTitle(
+                        Title.title(Component.empty(), TextUtil.parse(ctx.resolve(rest))));
+                case "actionbar" -> player.sendActionBar(TextUtil.parse(ctx.resolve(rest)));
+                case "feed" -> {
+                    int amount = rest.isEmpty() ? 20 : parseInt(rest.split("\\s+")[0], 20);
+                    player.setFoodLevel(Math.min(20, player.getFoodLevel() + Math.max(0, amount)));
+                    player.setSaturation(Math.min(20.0f, player.getSaturation() + 5.0f));
+                }
+                case "extinguish" -> player.setFireTicks(0);
+                case "sudo" -> {
+                    if (rest.isEmpty()) break;
+                    player.performCommand(ctx.resolve(rest));
+                }
+                case "spawnmob" -> {
+                    String[] args = rest.split("\\s+");
+                    if (args.length < 1 || args[0].isEmpty()) break;
+                    EntityType type;
+                    try {
+                        type = EntityType.valueOf(args[0].toUpperCase(Locale.ROOT));
+                    } catch (IllegalArgumentException e) {
+                        log.warning("Unknown entity type '" + args[0] + "' in action '" + line + "'.");
+                        break;
+                    }
+                    int count = args.length > 1 ? parseInt(args[1], 1) : 1;
+                    count = Math.max(1, Math.min(10, count));
+                    for (int i = 0; i < count; i++) {
+                        player.getWorld().spawnEntity(ctx.effectLocation(), type);
+                    }
                 }
                 default -> { /* validated at load; ignore silently */ }
             }

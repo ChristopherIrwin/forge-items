@@ -17,6 +17,16 @@ public final class CustomItem {
     public record AttributeEntry(double amount, AttributeModifier.Operation operation,
             EquipmentSlotGroup slotGroup) {}
 
+    /** A crafting recipe that produces this item. */
+    public record ItemRecipe(boolean shaped, List<String> shape,
+            Map<String, String> shapeIngredients, List<String> shapelessIngredients) {
+        public ItemRecipe {
+            shape = List.copyOf(shape);
+            shapeIngredients = Map.copyOf(shapeIngredients);
+            shapelessIngredients = List.copyOf(shapelessIngredients);
+        }
+    }
+
     private final String id;
     private final Material material;
     private final Component name;
@@ -37,6 +47,9 @@ public final class CustomItem {
     private final float consumeSeconds;
     private final int foodNutrition;
     private final float foodSaturation;
+    private final Rarity rarity;
+    private final String setId;
+    private final ItemRecipe recipe;
     private final Map<String, Activator> activators;
 
     @SuppressWarnings("java:S107") // many fields are inherent to an item definition
@@ -46,7 +59,9 @@ public final class CustomItem {
             @Nullable Boolean glintOverride, int maxStackSize, boolean keepOnDeath, int usageLimit,
             double globalCooldownSeconds, Set<String> restrictedWorlds,
             @Nullable String usePermission, boolean consumable, float consumeSeconds,
-            int foodNutrition, float foodSaturation, Map<String, Activator> activators) {
+            int foodNutrition, float foodSaturation, Rarity rarity,
+            @Nullable String setId, @Nullable ItemRecipe recipe,
+            Map<String, Activator> activators) {
         this.id = id;
         this.material = material;
         this.name = name;
@@ -67,6 +82,9 @@ public final class CustomItem {
         this.consumeSeconds = consumeSeconds;
         this.foodNutrition = foodNutrition;
         this.foodSaturation = foodSaturation;
+        this.rarity = rarity;
+        this.setId = setId;
+        this.recipe = recipe;
         this.activators = Map.copyOf(activators);
     }
 
@@ -94,6 +112,11 @@ public final class CustomItem {
     public float consumeSeconds() { return consumeSeconds; }
     public int foodNutrition() { return foodNutrition; }
     public float foodSaturation() { return foodSaturation; }
+    public Rarity rarity() { return rarity; }
+    /** Item-set id, or null when the item belongs to no set. */
+    public @Nullable String setId() { return setId; }
+    /** Crafting recipe, or null when the item has none. */
+    public @Nullable ItemRecipe recipe() { return recipe; }
     public Map<String, Activator> activators() { return activators; }
 
     /**

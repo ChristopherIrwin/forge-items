@@ -1,0 +1,29 @@
+id: ember_chestplate
+material: IRON_CHESTPLATE
+name: "<gradient:#ffcf3f:#ff7b2e>Ember Chestplate</gradient>"
+lore:
+  - "<gray>Smolders when worn at night"
+  - "<gray>Part of the <red>Ember Set"
+rarity: EPIC
+set: ember
+enchantments:
+  minecraft:protection: 4
+  minecraft:fire_protection: 4
+max-stack-size: 1
+unbreakable: true
+recipe:
+  type: shaped
+  shape:
+    - "B B"
+    - "BBB"
+    - "B B"
+  ingredients:
+    B: "minecraft:blaze_rod"
+activators:
+  smolder:
+    trigger: LOOP
+    cooldown-seconds: 10
+    conditions:
+      time: night
+    actions:
+      - "particle minecraft:smoke 10 0.4 0.02"

@@ -1,15 +1,14 @@
 name: ForgeItems
-version: 1.0.0
+version: 2.0.0
 main: com.forge.items.ForgeItems
 api-version: '26.3'
 author: Forge
-description: YAML-defined custom items with activators, actions, cooldowns and usage limits.
+description: YAML-defined custom items with activators, actions, sets, recipes and cooldowns.
 commands:
   forgeitems:
     description: Manage ForgeItems custom items.
-    usage: /forgeitems <reload|give|list>
+    usage: /forgeitems <reload|give|list|menu>
     aliases: [fitems]
-    permission: forgeitems.admin
 permissions:
   forgeitems.admin:
     description: Reload ForgeItems and manage items.
@@ -19,4 +18,7 @@ permissions:
     default: op
   forgeitems.list:
     description: List available ForgeItems custom items.
+    default: true
+  forgeitems.menu:
+    description: Open the ForgeItems item browser.
     default: true

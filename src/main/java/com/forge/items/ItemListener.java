@@ -19,12 +19,16 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -87,7 +91,7 @@ public final class ItemListener implements Listener {
         boolean fired = false;
         boolean cancel = false;
         for (Activator act : item.activators().values()) {
-            if (act.trigger() != trigger || !conditionsMet(player, act)) {
+            if (act.trigger() != trigger || !conditionsMet(player, act, target)) {
                 continue;
             }
             UUID uuid = player.getUniqueId();
@@ -114,7 +118,7 @@ public final class ItemListener implements Listener {
         return new FireResult(fired, cancel);
     }
 
-    private boolean conditionsMet(Player player, Activator act) {
+    private boolean conditionsMet(Player player, Activator act, @Nullable Entity target) {
         if (act.sneaking() != null && player.isSneaking() != act.sneaking()) {
             return false;
         }
@@ -122,7 +126,50 @@ public final class ItemListener implements Listener {
             return false;
         }
         double health = player.getHealth();
-        return health >= act.minHealth() && health <= act.maxHealth();
+        if (health < act.minHealth() || health > act.maxHealth()) {
+            return false;
+        }
+        if (!act.biomes().isEmpty()) {
+            String biome = player.getLocation().getBlock().getBiome().getKey().toString()
+                    .toLowerCase(Locale.ROOT);
+            String shortBiome = biome.contains(":") ? biome.substring(biome.indexOf(':') + 1) : biome;
+            if (!act.biomes().contains(biome) && !act.biomes().contains(shortBiome)) {
+                return false;
+            }
+        }
+        if (act.timeMode() != Activator.TimeMode.ANY) {
+            long time = player.getWorld().getTime();
+            boolean day = time < 12300 || time > 23850;
+            if ((act.timeMode() == Activator.TimeMode.DAY) != day) {
+                return false;
+            }
+        }
+        if (act.weather() != Activator.WeatherMode.ANY) {
+            boolean thunder = player.getWorld().isThundering();
+            boolean storm = thunder || player.getWorld().hasStorm();
+            switch (act.weather()) {
+                case CLEAR -> {
+                    if (storm) return false;
+                }
+                case RAIN -> {
+                    if (!storm || thunder) return false;
+                }
+                case THUNDER -> {
+                    if (!thunder) return false;
+                }
+                default -> { /* ANY handled above */ }
+            }
+        }
+        int light = player.getLocation().getBlock().getLightLevel();
+        if (light < act.minLight() || light > act.maxLight()) {
+            return false;
+        }
+        if (!act.targetTypes().isEmpty()) {
+            if (target == null || !act.targetTypes().contains(target.getType().name())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Decrements the PDC usage counter; breaks the item at zero. */
@@ -342,7 +389,66 @@ public final class ItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onSneakToggle(PlayerToggleSneakEvent event) {
-        scanSlots(event.getPlayer(), Trigger.SNEAK_TOGGLE, null, event.getPlayer().getLocation());
+        Player player = event.getPlayer();
+        if (event.isSneaking()) {
+            scanSlots(player, Trigger.SNEAK_START, null, player.getLocation());
+        }
+        scanSlots(player, Trigger.SNEAK_TOGGLE, null, player.getLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        Player player = event.getPlayer();
+        ItemStack stack = event.getItemInHand();
+        int slot = event.getHand() == EquipmentSlot.OFF_HAND ? 40
+                : player.getInventory().getHeldItemSlot();
+        FireResult result = tryActivate(player, slot, stack, Trigger.BLOCK_PLACE,
+                null, event.getBlockPlaced().getLocation());
+        if (result.cancel()) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onItemDrop(PlayerDropItemEvent event) {
+        Player player = event.getPlayer();
+        ItemStack stack = event.getItemDrop().getItemStack();
+        FireResult result = tryActivate(player, -1, stack, Trigger.ITEM_DROP,
+                event.getItemDrop(), event.getItemDrop().getLocation());
+        if (result.cancel()) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onItemPickup(EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+        ItemStack stack = event.getItem().getItemStack();
+        tryActivate(player, -1, stack, Trigger.ITEM_PICKUP,
+                event.getItem(), event.getItem().getLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onPlayerDeathVictim(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        scanSlots(player, Trigger.PLAYER_DEATH, null, player.getLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onFish(PlayerFishEvent event) {
+        if (event.getState() != PlayerFishEvent.State.CAUGHT_FISH) {
+            return;
+        }
+        Player player = event.getPlayer();
+        ItemStack[] holder = new ItemStack[1];
+        int slot = findHandSlot(player, holder);
+        if (slot < 0) {
+            return;
+        }
+        tryActivate(player, slot, holder[0], Trigger.FISH_CAUGHT,
+                event.getCaught(), event.getHook().getLocation());
     }
 
     // -------------------------------------------------------------- soulbound

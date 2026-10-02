@@ -11,7 +11,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-/** /forgeitems reload | give <id> [player] [amount] | list */
+/** /forgeitems reload | give <id> [player] [amount] | list | menu */
 public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
     private final ForgeItems plugin;
 
@@ -22,14 +22,15 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list>"));
+            sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list|menu>"));
             return true;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "reload" -> reload(sender);
             case "list" -> list(sender);
             case "give" -> give(sender, args);
-            default -> sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list>"));
+            case "menu" -> menu(sender);
+            default -> sender.sendMessage(TextUtil.parse("<gray>Usage: <white>/forgeitems <reload|give|list|menu>"));
         }
         return true;
     }
@@ -43,8 +44,7 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.prefixed("messages.reloaded", "count", String.valueOf(count)));
     }
 
-    private void list(CommandSender sender) {
-        if (!sender.hasPermission("forgeitems.list")) {
+    private void list(CommandSender sender) {        if (!sender.hasPermission("forgeitems.list")) {
             sender.sendMessage(plugin.prefixed("messages.no-permission"));
             return;
         }
@@ -56,6 +56,18 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(plugin.prefixed("messages.item-list-entry",
                     "id", id, "name", plugin.plainName(item)));
         }
+    }
+
+    private void menu(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(TextUtil.parse("<red>This command is for players only."));
+            return;
+        }
+        if (!sender.hasPermission("forgeitems.menu")) {
+            sender.sendMessage(plugin.prefixed("messages.no-permission"));
+            return;
+        }
+        plugin.browser().open(player, 0);
     }
 
     private void give(CommandSender sender, String[] args) {
@@ -121,7 +133,7 @@ public final class ForgeItemsCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 1) {
-            return filter(List.of("reload", "give", "list"), args[0]);
+            return filter(List.of("reload", "give", "list", "menu"), args[0]);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
             return filter(new ArrayList<>(plugin.registry().ids()), args[1]);

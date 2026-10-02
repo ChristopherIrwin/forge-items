@@ -4,14 +4,15 @@
 
 <h1 align="center">ForgeItems</h1>
 
-<p align="center"><i>YAML-defined custom items — 14 activators, 11 action verbs, cooldowns, soulbound, custom durability.</i></p>
+<p align="center"><i>YAML-defined custom items — 20 activators, 19 action verbs, item sets, crafting recipes, browser GUI, cooldowns, soulbound, custom durability.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-ff7b2e?style=for-the-badge" alt="version 1.0.0">
+  <img src="https://img.shields.io/badge/version-2.0.0-ff7b2e?style=for-the-badge" alt="version 2.0.0">
   <img src="https://img.shields.io/badge/Paper-26.3-2f9e6e?style=for-the-badge" alt="Paper 26.3">
   <img src="https://img.shields.io/badge/Java-25-f89820?style=for-the-badge" alt="Java 25">
-  <img src="https://img.shields.io/badge/14_activators-2563eb?style=for-the-badge" alt="14 activators">
-  <img src="https://img.shields.io/badge/11_action_verbs-b565d8?style=for-the-badge" alt="11 action verbs">
+  <img src="https://img.shields.io/badge/20_activators-2563eb?style=for-the-badge" alt="20 activators">
+  <img src="https://img.shields.io/badge/19_action_verbs-b565d8?style=for-the-badge" alt="19 action verbs">
+  <img src="https://img.shields.io/badge/sets_+_recipes-ef4444?style=for-the-badge" alt="sets and recipes">
   <img src="https://img.shields.io/badge/dependencies-zero-6b7280?style=for-the-badge" alt="zero dependencies">
 </p>
 
@@ -24,9 +25,13 @@ YAML-defined custom items for Paper. Define items in plain YAML files — displa
 ## Features
 
 - **YAML item definitions** in `plugins/ForgeItems/items/*.yml` — no code needed to add items
-- **14 activators** (triggers): right-click, left-click, shift-right-click, hitting/killing entities, block break, taking damage, equip/unequip (armor), consuming, projectile launch/hit, sneak toggle, and a periodic `LOOP` trigger
-- **11 built-in action verbs** plus per-activator console commands, a direct message, and potion effects
-- **Per-activator conditions**: required sneak state, permission, player health range, fire chance
+- **20 activators** (triggers): right-click, left-click, shift-right-click, hitting/killing entities, block break/place, taking damage, dying, equip/unequip (armor), consuming, item drop/pickup, projectile launch/hit, fishing catches, sneak toggle/start, and a periodic `LOOP` trigger
+- **19 built-in action verbs** plus per-activator console commands, a direct message, and potion effects
+- **Item sets** (`sets.yml`): wear N pieces for potion-effect tiers plus message/action/command rewards
+- **Crafting recipes**: shaped/shapeless recipes that produce custom items, with vanilla *or* custom-item ingredients
+- **Item browser GUI** (`/fitems menu`): paginated, rarity-sorted browser; click to take a copy (with `forgeitems.give`)
+- **Rarity tiers**: COMMON → MYTHIC, shown as a colored lore line and used for GUI sorting
+- **Rich per-activator conditions**: sneak state, permission, health range, fire chance, biomes, day/night, weather, light level, target entity type
 - **Per-activator and global cooldowns**, plus the vanilla material `cooldown` action
 - **Custom durability**: usage limits stored in the item's PersistentDataContainer, with break and uses-left warnings
 - **Soulbound**: `keep-on-death` items are retained through death
@@ -43,23 +48,25 @@ YAML-defined custom items for Paper. Define items in plain YAML files — displa
 
 ## Installation
 
-Drop `ForgeItems-1.0.0.jar` into your server's `plugins/` folder and restart. Three example items (`thunder_hammer`, `frost_bow`, `guardian_chestplate`) are generated into `plugins/ForgeItems/items/` on first run.
+Drop `ForgeItems-2.0.0.jar` into your server's `plugins/` folder and restart. Five example items (`thunder_hammer`, `frost_bow`, `guardian_chestplate`, `ember_blade`, `ember_chestplate`) are generated into `plugins/ForgeItems/items/` on first run, along with an example `sets.yml` (the Ember Set).
 
 ## Commands
 
 | Command | Description | Permission |
 |---|---|---|
-| `/forgeitems reload` (`/fitems reload`) | Reload `config.yml` and all item definitions | `forgeitems.admin` |
+| `/forgeitems reload` (`/fitems reload`) | Reload `config.yml`, items, sets, and recipes | `forgeitems.admin` |
 | `/forgeitems give <id> [player] [amount]` | Give a custom item (amount defaults to 1, clamped 1–64) | `forgeitems.give` |
 | `/forgeitems list` | List all loaded item ids and names | `forgeitems.list` |
+| `/forgeitems menu` (`/fitems menu`) | Open the paginated item browser GUI | `forgeitems.menu` |
 
 ## Permissions
 
 | Permission | Description | Default |
 |---|---|---|
 | `forgeitems.admin` | Reload items | op |
-| `forgeitems.give` | Give custom items to players | op |
+| `forgeitems.give` | Give custom items to players (also click-to-take in the browser) | op |
 | `forgeitems.list` | List available custom items | true |
+| `forgeitems.menu` | Open the item browser GUI | true |
 
 ## Configuration
 
@@ -107,6 +114,17 @@ usage-limit: 250                     # custom durability; 0 = unlimited
 cooldown-seconds: 0                  # global cooldown across all activators
 restricted-worlds: [world_nether]    # item activators are inert here
 use-permission: "myserver.vip"       # players without it cannot trigger the item
+rarity: EPIC                        # COMMON | UNCOMMON | RARE | EPIC | LEGENDARY | MYTHIC
+set: ember                          # item-set id from sets.yml (bonuses while worn)
+recipe:                             # optional crafting recipe producing this item
+  type: shaped                      # shaped | shapeless
+  shape:                            # shaped: 1-3 rows
+    - " B "
+    - " B "
+    - " S "
+  ingredients:                      # shaped: char -> material or custom item id
+    B: "minecraft:blaze_rod"        # shapeless: list of materials/item ids instead
+    S: "minecraft:stick"
 consumable: false
 consume-seconds: 1.6                 # eat/drink time when consumable
 food:
@@ -124,6 +142,12 @@ activators:
       permission: "myserver.zap"     # activator-level permission
       min-health: 1.0                # player health range, half-hearts
       max-health: 19.0
+      biomes: [plains, minecraft:forest]  # allowed biomes (bare or namespaced)
+      time: night                    # day | night | any
+      weather: thunder               # clear | rain | thunder | any
+      min-light: 0                   # block light level 0-15
+      max-light: 7
+      target-types: [ZOMBIE]         # allowed target entity types
     actions:                         # built-in action verbs, in order
       - "lightning"
       - "message <yellow>Zap!"
@@ -132,6 +156,31 @@ activators:
     message: "<yellow>Zap!"           # direct MiniMessage message to the user
     effects:                         # potion effects applied to the user
       - "minecraft:speed 200 1"      # or map form: {type:, duration:, amplifier:}
+```
+
+Placeholders available in `actions`, `commands`, and `message`: `%player%`, `%target%`, `%x%`, `%y%`, `%z%`, `%world%`, `%uses%` (durability left), `%rarity%`, `%set%`.
+
+### sets.yml
+
+Item sets grant bonuses while enough pieces are worn (armor slots are scanned every 2 seconds and on armor changes). Each tier applies its potion effects while active and fires its message/actions/commands once per threshold crossing (with a 30-second re-fire guard).
+
+```yaml
+sets:
+  ember:
+    name: "<red>Ember Set"
+    bonuses:
+      - pieces: 2
+        effects:
+          - "minecraft:fire_resistance 200 0"
+        message: "<red>Ember Set <gray>(2 pieces): <white>Fire Resistance!"
+        actions:
+          - "particle minecraft:flame 40 0.6 0.05"
+        commands: []
+      - pieces: 4
+        effects:
+          - "minecraft:fire_resistance 200 0"
+          - "minecraft:strength 200 1"
+        message: "<gold>Ember Set complete: Strength II!"
 ```
 
 ### Triggers
@@ -144,18 +193,24 @@ activators:
 | `HIT_ENTITY` | Player hits an entity holding/wearing the item |
 | `KILL_ENTITY` | Player kills an entity holding/wearing the item |
 | `BLOCK_BREAK` | Player breaks a block holding the item |
+| `BLOCK_PLACE` | Player places a block holding the item |
 | `TAKE_DAMAGE` | Player takes damage holding/wearing the item |
+| `PLAYER_DEATH` | Player dies holding/wearing the item |
 | `EQUIP` | Item is equipped (armor slot change) |
 | `UNEQUIP` | Item is unequipped (armor slot change) |
 | `CONSUME` | Player consumes the item (food/potion) |
+| `ITEM_DROP` | Player drops the item |
+| `ITEM_PICKUP` | Player picks up the item |
 | `PROJECTILE_LAUNCH` | Player launches a projectile holding the item |
 | `PROJECTILE_HIT` | Projectile launched with the item hits something |
+| `FISH_CAUGHT` | Player catches a fish holding the item |
 | `SNEAK_TOGGLE` | Player toggles sneak holding/wearing the item |
+| `SNEAK_START` | Player starts sneaking holding/wearing the item |
 | `LOOP` | Periodic scan while held/worn (see `loop-interval-ticks`) |
 
 ### Action verbs
 
-Actions run in order; arguments support `%player%`, `%target%`, `%x%`, `%y%`, `%z%`, `%world%` placeholders. MiniMessage is parsed in `message`/`broadcast`.
+Actions run in order. MiniMessage is parsed in `message`/`broadcast`/`title`/`subtitle`/`actionbar`.
 
 | Verb | Syntax | Effect |
 |---|---|---|
@@ -170,6 +225,14 @@ Actions run in order; arguments support `%player%`, `%target%`, `%x%`, `%y%`, `%
 | `command` | `command <console command>` | Dispatch a command as console |
 | `cooldown` | `cooldown <seconds>` | Apply the vanilla material cooldown |
 | `sound` | `sound <key> [volume] [pitch]` | Play a sound to the player |
+| `particle` | `particle <key> [count] [spread] [speed]` | Spawn particles at the effect location |
+| `title` | `title <MiniMessage>` | Show a title to the player |
+| `subtitle` | `subtitle <MiniMessage>` | Show a subtitle to the player |
+| `actionbar` | `actionbar <MiniMessage>` | Send an action-bar message |
+| `feed` | `feed [amount]` | Restore hunger (default 20) |
+| `extinguish` | `extinguish` | Put out the player |
+| `sudo` | `sudo <command>` | Run a command as the player |
+| `spawnmob` | `spawnmob <type> [count]` | Spawn mobs at the effect location (max 10) |
 
 The effect location is the trigger location, else the target's location, else the player's.
 
@@ -185,7 +248,7 @@ The build uses `javac` directly (the Gradle daemon cannot run in this sandbox):
 - Dependencies from `~/workspace/.toolchains/paper-deps/` (Paper API 26.3.build.35-alpha)
 - Compiled with `-Werror -Xlint:deprecation`, so warnings fail the build
 
-Output: `ForgeItems-1.0.0.jar`.
+Output: `ForgeItems-2.0.0.jar`.
 
 ## Code quality
 

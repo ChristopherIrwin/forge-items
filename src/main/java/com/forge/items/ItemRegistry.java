@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.logging.Logger;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.AttributeModifier;
@@ -28,6 +29,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.RecipeChoice;
+import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
@@ -44,6 +48,8 @@ public final class ItemRegistry {
     private final NamespacedKey idKey;
     private final NamespacedKey usesKey;
     private final Map<String, CustomItem> items = new HashMap<>();
+    private final Map<String, SetBonus> setBonuses = new HashMap<>();
+    private final Set<NamespacedKey> recipeKeys = new HashSet<>();
 
     public ItemRegistry(Plugin plugin) {
         this.plugin = plugin;
@@ -94,6 +100,132 @@ public final class ItemRegistry {
         return Set.copyOf(items.keySet());
     }
 
+    /** All loaded set bonuses, keyed by lowercase set id. */
+    public Map<String, SetBonus> setBonuses() {
+        return Map.copyOf(setBonuses);
+    }
+
+    /** (Re)loads sets.yml. Returns the number of sets loaded. */
+    public int loadSets(java.io.File file) {
+        setBonuses.clear();
+        if (!file.exists()) {
+            return 0;
+        }
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+        ConfigurationSection sec = cfg.getConfigurationSection("sets");
+        if (sec == null) {
+            return 0;
+        }
+        int loaded = 0;
+        for (String setId : sec.getKeys(false)) {
+            ConfigurationSection s = sec.getConfigurationSection(setId);
+            if (s == null) {
+                continue;
+            }
+            List<SetBonus.Tier> tiers = new ArrayList<>();
+            for (Object o : s.getList("bonuses", List.of())) {
+                if (!(o instanceof Map<?, ?> m)) {
+                    continue;
+                }
+                int pieces = m.get("pieces") instanceof Number n ? n.intValue() : 0;
+                if (pieces <= 0) {
+                    log.warning("Set '" + setId + "': bonus with invalid pieces — skipped.");
+                    continue;
+                }
+                List<PotionEffect> effects = parseEffectsList(m.get("effects"), "set '" + setId + "'");
+                List<String> actions = stringList(m.get("actions"));
+                List<String> commands = stringList(m.get("commands"));
+                String message = m.get("message") instanceof String str ? str : null;
+                tiers.add(new SetBonus.Tier(pieces, effects, actions, commands, message));
+            }
+            String key = setId.toLowerCase(Locale.ROOT);
+            setBonuses.put(key, new SetBonus(key, s.getString("name", setId), tiers));
+            loaded++;
+        }
+        return loaded;
+    }
+
+    /** (Re)registers crafting recipes for all loaded items; call after loadAll. */
+    public void registerRecipes() {
+        for (NamespacedKey key : recipeKeys) {
+            Bukkit.removeRecipe(key);
+        }
+        recipeKeys.clear();
+        for (CustomItem def : items.values()) {
+            CustomItem.ItemRecipe recipe = def.recipe();
+            if (recipe == null) {
+                continue;
+            }
+            NamespacedKey key = new NamespacedKey(plugin, "recipe_" + def.id());
+            ItemStack result = build(def, 1);
+            boolean ok = recipe.shaped()
+                    ? registerShaped(key, result, recipe, def.id())
+                    : registerShapeless(key, result, recipe, def.id());
+            if (ok) {
+                recipeKeys.add(key);
+            }
+        }
+    }
+
+    private boolean registerShaped(NamespacedKey key, ItemStack result,
+            CustomItem.ItemRecipe recipe, String id) {
+        if (recipe.shape().isEmpty() || recipe.shape().size() > 3) {
+            log.warning("Item '" + id + "': recipe shape must have 1-3 rows — skipped.");
+            return false;
+        }
+        ShapedRecipe shaped = new ShapedRecipe(key, result);
+        try {
+            shaped.shape(recipe.shape().toArray(new String[0]));
+        } catch (IllegalArgumentException e) {
+            log.warning("Item '" + id + "': bad recipe shape — skipped.");
+            return false;
+        }
+        for (Map.Entry<String, String> entry : recipe.shapeIngredients().entrySet()) {
+            RecipeChoice choice = choiceFor(entry.getValue(), id);
+            if (choice == null) {
+                return false;
+            }
+            shaped.setIngredient(entry.getKey().charAt(0), choice);
+        }
+        Bukkit.addRecipe(shaped);
+        return true;
+    }
+
+    private boolean registerShapeless(NamespacedKey key, ItemStack result,
+            CustomItem.ItemRecipe recipe, String id) {
+        if (recipe.shapelessIngredients().isEmpty()) {
+            log.warning("Item '" + id + "': shapeless recipe has no ingredients — skipped.");
+            return false;
+        }
+        ShapelessRecipe shapeless = new ShapelessRecipe(key, result);
+        for (String raw : recipe.shapelessIngredients()) {
+            RecipeChoice choice = choiceFor(raw, id);
+            if (choice == null) {
+                return false;
+            }
+            shapeless.addIngredient(choice);
+        }
+        Bukkit.addRecipe(shapeless);
+        return true;
+    }
+
+    /** Resolves an ingredient to a custom item id or a vanilla material. */
+    private @Nullable RecipeChoice choiceFor(@Nullable String raw, String itemId) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        CustomItem custom = get(raw);
+        if (custom != null) {
+            return RecipeChoice.exactChoice(build(custom, 1));
+        }
+        Material mat = Material.matchMaterial(raw);
+        if (mat != null && !mat.isAir()) {
+            return RecipeChoice.itemType(mat.asItemType());
+        }
+        log.warning("Item '" + itemId + "': unknown recipe ingredient '" + raw + "' — recipe skipped.");
+        return null;
+    }
+
     /** Returns the ForgeItems id stored on the stack, or null. */
     public @Nullable String getItemId(@Nullable ItemStack stack) {
         if (stack == null || stack.getType().isAir() || !stack.hasItemMeta()) {
@@ -113,9 +245,9 @@ public final class ItemRegistry {
         if (def.name() != null) {
             stack.setData(DataComponentTypes.CUSTOM_NAME, def.name());
         }
-        if (!def.lore().isEmpty()) {
-            stack.setData(DataComponentTypes.LORE, ItemLore.lore(def.lore()));
-        }
+        List<Component> fullLore = new ArrayList<>(def.lore());
+        fullLore.add(TextUtil.parse("<gray>Rarity: " + def.rarity().loreLine()));
+        stack.setData(DataComponentTypes.LORE, ItemLore.lore(fullLore));
         if (!def.enchantments().isEmpty()) {
             stack.setData(DataComponentTypes.ENCHANTMENTS, ItemEnchantments.itemEnchantments(def.enchantments()));
         }
@@ -273,39 +405,32 @@ public final class ItemRegistry {
                 String permission = null;
                 double minHealth = 0;
                 double maxHealth = Double.MAX_VALUE;
+                Set<String> biomes = new HashSet<>();
+                Activator.TimeMode timeMode = Activator.TimeMode.ANY;
+                Activator.WeatherMode weather = Activator.WeatherMode.ANY;
+                int minLight = 0;
+                int maxLight = 15;
+                Set<String> targetTypes = new HashSet<>();
                 ConfigurationSection cond = a.getConfigurationSection("conditions");
                 if (cond != null) {
                     if (cond.isBoolean("sneaking")) sneaking = cond.getBoolean("sneaking");
                     if (cond.isString("permission")) permission = cond.getString("permission");
                     minHealth = cond.getDouble("min-health", 0);
                     maxHealth = cond.getDouble("max-health", Double.MAX_VALUE);
-                }
-                List<PotionEffect> effects = new ArrayList<>();
-                for (Object o : a.getList("effects", List.of())) {
-                    if (o instanceof Map<?, ?> m) {
-                        PotionEffectType type = effectType(String.valueOf(m.get("type")));
-                        if (type == null) {
-                            log.warning("Item '" + id + "': activator '" + actName + "' has unknown effect '"
-                                    + m.get("type") + "' — skipped.");
-                            continue;
-                        }
-                        int dur = m.get("duration") instanceof Number n ? n.intValue() : 200;
-                        int amp = m.get("amplifier") instanceof Number n ? n.intValue() : 0;
-                        effects.add(new PotionEffect(type, Math.max(1, dur), Math.max(0, amp)));
-                    } else if (o instanceof String s) {
-                        // shorthand: "minecraft:speed 200 1"
-                        String[] parts = s.split("\\s+");
-                        PotionEffectType type = effectType(parts[0]);
-                        if (type == null) {
-                            log.warning("Item '" + id + "': activator '" + actName + "' has unknown effect '"
-                                    + parts[0] + "' — skipped.");
-                            continue;
-                        }
-                        int dur = parts.length > 1 ? parseInt(parts[1], 200) : 200;
-                        int amp = parts.length > 2 ? parseInt(parts[2], 0) : 0;
-                        effects.add(new PotionEffect(type, Math.max(1, dur), Math.max(0, amp)));
+                    for (String biome : cond.getStringList("biomes")) {
+                        biomes.add(biome.toLowerCase(Locale.ROOT));
+                    }
+                    timeMode = parseTimeMode(cond.getString("time"), id, actName);
+                    weather = parseWeatherMode(cond.getString("weather"), id, actName);
+                    minLight = Math.max(0, Math.min(15, cond.getInt("min-light", 0)));
+                    maxLight = Math.max(0, Math.min(15, cond.getInt("max-light", 15)));
+                    for (String type : cond.getStringList("target-types")) {
+                        targetTypes.add(type.toUpperCase(Locale.ROOT));
                     }
                 }
+                List<PotionEffect> effects = parseEffectsList(
+                        a.getList("effects", List.of()),
+                        "Item '" + id + "' activator '" + actName + "'");
                 Component message = a.isString("message") ? TextUtil.parse(a.getString("message")) : null;
                 String messageRaw = a.isString("message") ? a.getString("message") : null;
                 activators.put(actName.toLowerCase(Locale.ROOT), new Activator(
@@ -319,6 +444,12 @@ public final class ItemRegistry {
                         permission,
                         minHealth,
                         maxHealth,
+                        biomes,
+                        timeMode,
+                        weather,
+                        minLight,
+                        maxLight,
+                        targetTypes,
                         a.getStringList("actions"),
                         a.getStringList("commands"),
                         message,
@@ -332,6 +463,25 @@ public final class ItemRegistry {
             worlds.add(w.toLowerCase(Locale.ROOT));
         }
 
+        Rarity rarity = Rarity.COMMON;
+        if (cfg.isString("rarity")) {
+            Rarity parsed = Rarity.fromString(cfg.getString("rarity"));
+            if (parsed == null) {
+                log.warning("Item '" + id + "': unknown rarity '" + cfg.getString("rarity")
+                        + "' — using COMMON.");
+            } else {
+                rarity = parsed;
+            }
+        }
+        String setId = null;
+        if (cfg.isString("set")) {
+            String raw = cfg.getString("set", "").trim().toLowerCase(Locale.ROOT);
+            if (!raw.isEmpty()) {
+                setId = raw;
+            }
+        }
+        CustomItem.ItemRecipe recipe = parseRecipe(cfg.getConfigurationSection("recipe"), id);
+
         return new CustomItem(
                 id, material, name, lore, enchantments, attributes,
                 cfg.getBoolean("unbreakable", false), cmd, itemModel, glint,
@@ -340,7 +490,115 @@ public final class ItemRegistry {
                 worlds, cfg.isString("use-permission") ? cfg.getString("use-permission") : null,
                 consumable, consumeSeconds,
                 cfg.getInt("food.nutrition", 0), (float) cfg.getDouble("food.saturation", 0),
+                rarity, setId, recipe,
                 activators);
+    }
+
+    /** Parses an effects list (map or shorthand-string entries); warns on unknown types. */
+    private List<PotionEffect> parseEffectsList(@Nullable Object raw, String where) {
+        List<PotionEffect> effects = new ArrayList<>();
+        if (!(raw instanceof List<?> list)) {
+            return effects;
+        }
+        for (Object o : list) {
+            if (o instanceof Map<?, ?> m) {
+                PotionEffectType type = effectType(String.valueOf(m.get("type")));
+                if (type == null) {
+                    log.warning(where + " has unknown effect '" + m.get("type") + "' — skipped.");
+                    continue;
+                }
+                int dur = m.get("duration") instanceof Number n ? n.intValue() : 200;
+                int amp = m.get("amplifier") instanceof Number n ? n.intValue() : 0;
+                effects.add(new PotionEffect(type, Math.max(1, dur), Math.max(0, amp)));
+            } else if (o instanceof String s) {
+                // shorthand: "minecraft:speed 200 1"
+                String[] parts = s.split("\\s+");
+                PotionEffectType type = effectType(parts[0]);
+                if (type == null) {
+                    log.warning(where + " has unknown effect '" + parts[0] + "' — skipped.");
+                    continue;
+                }
+                int dur = parts.length > 1 ? parseInt(parts[1], 200) : 200;
+                int amp = parts.length > 2 ? parseInt(parts[2], 0) : 0;
+                effects.add(new PotionEffect(type, Math.max(1, dur), Math.max(0, amp)));
+            }
+        }
+        return effects;
+    }
+
+    private static List<String> stringList(@Nullable Object raw) {
+        List<String> out = new ArrayList<>();
+        if (raw instanceof List<?> list) {
+            for (Object o : list) {
+                out.add(String.valueOf(o));
+            }
+        }
+        return out;
+    }
+
+    private Activator.TimeMode parseTimeMode(@Nullable String raw, String id, String actName) {
+        if (raw == null) {
+            return Activator.TimeMode.ANY;
+        }
+        try {
+            return Activator.TimeMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            log.warning("Item '" + id + "': activator '" + actName + "' has unknown time '"
+                    + raw + "' — ignored.");
+            return Activator.TimeMode.ANY;
+        }
+    }
+
+    private Activator.WeatherMode parseWeatherMode(@Nullable String raw, String id, String actName) {
+        if (raw == null) {
+            return Activator.WeatherMode.ANY;
+        }
+        try {
+            return Activator.WeatherMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            log.warning("Item '" + id + "': activator '" + actName + "' has unknown weather '"
+                    + raw + "' — ignored.");
+            return Activator.WeatherMode.ANY;
+        }
+    }
+
+    /** Parses the optional recipe section; null when absent or invalid (caller logs). */
+    private @Nullable CustomItem.ItemRecipe parseRecipe(
+            @Nullable ConfigurationSection rSec, String id) {
+        if (rSec == null) {
+            return null;
+        }
+        boolean shaped = !"shapeless".equalsIgnoreCase(rSec.getString("type", "shaped"));
+        if (shaped) {
+            List<String> shape = rSec.getStringList("shape");
+            ConfigurationSection ingSec = rSec.getConfigurationSection("ingredients");
+            Map<String, String> shapeIngredients = new HashMap<>();
+            if (ingSec != null) {
+                for (String key : ingSec.getKeys(false)) {
+                    if (key.length() == 1) {
+                        shapeIngredients.put(key, String.valueOf(ingSec.get(key)));
+                    }
+                }
+            }
+            if (shape.isEmpty() || shapeIngredients.isEmpty()) {
+                log.warning("Item '" + id + "': recipe needs a shape and ingredients — skipped.");
+                return null;
+            }
+            return new CustomItem.ItemRecipe(true, shape, shapeIngredients, List.of());
+        }
+        List<String> flat = new ArrayList<>();
+        ConfigurationSection ingSec = rSec.getConfigurationSection("ingredients");
+        if (ingSec != null) {
+            for (String key : ingSec.getKeys(false)) {
+                flat.add(String.valueOf(ingSec.get(key)));
+            }
+        }
+        flat.addAll(rSec.getStringList("ingredients"));
+        if (flat.isEmpty()) {
+            log.warning("Item '" + id + "': shapeless recipe has no ingredients — skipped.");
+            return null;
+        }
+        return new CustomItem.ItemRecipe(false, List.of(), Map.of(), flat);
     }
 
     private static int parseInt(String s, int fallback) {
