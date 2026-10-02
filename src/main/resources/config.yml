@@ -4,6 +4,15 @@ settings:
   loop-interval-ticks: 20
   # Prefix used on all plugin messages.
   message-prefix: "<gray>[<gold>ForgeItems<gray>] "
+  # Action-bar notice when an activator is still on cooldown (with <seconds>).
+  cooldown-notify: true
+  mana:
+    enabled: true
+    max-mana: 100.0
+    regen-per-second: 5.0
+    # Where to show the mana bar while it is not full: actionbar | none
+    display: actionbar
+    display-format: "<aqua>Mana <white>%mana%<gray>/%max%"
 
 messages:
   reloaded: "<green>ForgeItems reloaded: <white><count> <green>item(s) loaded."
@@ -15,3 +24,5 @@ messages:
   item-list-entry: "<gray>- <white><id> <gray>(<name><gray>)"
   item-broken: "<red>Your <name> <red>has broken!"
   usage-left: "<yellow><uses> uses left on your <name><yellow>."
+  cooldown-left: "<gray>Ready in <white><seconds>s"
+  no-mana: "<red>Not enough mana! <gray>(need <white><cost><gray>)"

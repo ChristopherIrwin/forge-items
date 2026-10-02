@@ -19,12 +19,18 @@ public enum Trigger {
     PROJECTILE_LAUNCH,
     SNEAK_TOGGLE,
     SNEAK_START,
+    SPRINT_START,
+    GLIDE_START,
     ITEM_DROP,
     ITEM_PICKUP,
     PLAYER_DEATH,
+    PLAYER_JOIN,
+    PLAYER_RESPAWN,
+    WORLD_CHANGE,
     FISH_CAUGHT,
+    LEVEL_UP,
     LOOP,
-    /** Synthetic marker for set-bonus reward execution; never fired by events. */
+    /** Synthetic markers for manager-driven execution; never fired by events. */
     SET_BONUS;
 
     /** Parses a trigger name from config; returns null and logs nothing (caller warns). */

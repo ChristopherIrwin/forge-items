@@ -11,6 +11,15 @@ enchantments:
   minecraft:sharpness: 3
 max-stack-size: 1
 usage-limit: 500
+levels:
+  max-level: 10
+  xp-base: 40
+  xp-growth: 1.6
+  xp-per-trigger: 3
+  xp-per-kill: 20
+  level-up-message: "<red>Your <name> <red>reached level <white><level><red>!"
+  level-up-actions:
+    - "particle minecraft:flame 40 0.6 0.05"
 recipe:
   type: shaped
   shape:
@@ -24,6 +33,7 @@ activators:
   erupt:
     trigger: RIGHT_CLICK
     cooldown-seconds: 6
+    mana-cost: 15
     conditions:
       sneaking: false
     actions:

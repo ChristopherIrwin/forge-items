@@ -20,6 +20,7 @@ public final class Activator {
     private final Trigger trigger;
     private final double cooldownSeconds;
     private final double chance;
+    private final double manaCost;
     private final boolean cancelEvent;
     private final boolean consumeUse;
     private final Boolean sneaking;
@@ -40,7 +41,7 @@ public final class Activator {
 
     @SuppressWarnings("java:S107") // many fields are inherent to an activator definition
     public Activator(String name, Trigger trigger, double cooldownSeconds, double chance,
-            boolean cancelEvent, boolean consumeUse, @Nullable Boolean sneaking,
+            double manaCost, boolean cancelEvent, boolean consumeUse, @Nullable Boolean sneaking,
             @Nullable String permission, double minHealth, double maxHealth,
             Set<String> biomes, TimeMode timeMode, WeatherMode weather,
             int minLight, int maxLight, Set<String> targetTypes,
@@ -50,6 +51,7 @@ public final class Activator {
         this.trigger = trigger;
         this.cooldownSeconds = cooldownSeconds;
         this.chance = chance;
+        this.manaCost = manaCost;
         this.cancelEvent = cancelEvent;
         this.consumeUse = consumeUse;
         this.sneaking = sneaking;
@@ -73,6 +75,8 @@ public final class Activator {
     public Trigger trigger() { return trigger; }
     public double cooldownSeconds() { return cooldownSeconds; }
     public double chance() { return chance; }
+    /** Mana cost per firing; 0 means free. */
+    public double manaCost() { return manaCost; }
     public boolean cancelEvent() { return cancelEvent; }
     public boolean consumeUse() { return consumeUse; }
     /** Required sneak state, or null when the activator YAML defines none. */
@@ -96,4 +100,16 @@ public final class Activator {
     /** Raw message with placeholders, or null when the activator YAML defines none. */
     public @Nullable String messageRaw() { return messageRaw; }
     public List<PotionEffect> effects() { return effects; }
+
+    /**
+     * Builds a synthetic activator for manager-driven execution (set bonuses,
+     * level-ups): no cost, no conditions, always fires.
+     */
+    public static Activator synthetic(String name, Trigger trigger,
+            List<String> actions, List<String> commands) {
+        return new Activator(name, trigger, 0, 1.0, 0, false, false,
+                null, null, 0, Double.MAX_VALUE,
+                Set.of(), TimeMode.ANY, WeatherMode.ANY, 0, 15, Set.of(),
+                actions, commands, null, null, List.of());
+    }
 }

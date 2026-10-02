@@ -4,14 +4,15 @@
 
 <h1 align="center">ForgeItems</h1>
 
-<p align="center"><i>YAML-defined custom items — 20 activators, 19 action verbs, item sets, crafting recipes, browser GUI, cooldowns, soulbound, custom durability.</i></p>
+<p align="center"><i>YAML-defined custom items — 25 activators, 25 action verbs, mana, item levels, mob drops, sets, recipes, browser GUI, soulbound, custom durability.</i></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-ff7b2e?style=for-the-badge" alt="version 2.0.0">
+  <img src="https://img.shields.io/badge/version-3.0.0-ff7b2e?style=for-the-badge" alt="version 3.0.0">
   <img src="https://img.shields.io/badge/Paper-26.3-2f9e6e?style=for-the-badge" alt="Paper 26.3">
   <img src="https://img.shields.io/badge/Java-25-f89820?style=for-the-badge" alt="Java 25">
-  <img src="https://img.shields.io/badge/20_activators-2563eb?style=for-the-badge" alt="20 activators">
-  <img src="https://img.shields.io/badge/19_action_verbs-b565d8?style=for-the-badge" alt="19 action verbs">
+  <img src="https://img.shields.io/badge/25_activators-2563eb?style=for-the-badge" alt="25 activators">
+  <img src="https://img.shields.io/badge/25_action_verbs-b565d8?style=for-the-badge" alt="25 action verbs">
+  <img src="https://img.shields.io/badge/mana_+_levels-0ea5e9?style=for-the-badge" alt="mana and levels">
   <img src="https://img.shields.io/badge/sets_+_recipes-ef4444?style=for-the-badge" alt="sets and recipes">
   <img src="https://img.shields.io/badge/dependencies-zero-6b7280?style=for-the-badge" alt="zero dependencies">
 </p>
@@ -25,14 +26,17 @@ YAML-defined custom items for Paper. Define items in plain YAML files — displa
 ## Features
 
 - **YAML item definitions** in `plugins/ForgeItems/items/*.yml` — no code needed to add items
-- **20 activators** (triggers): right-click, left-click, shift-right-click, hitting/killing entities, block break/place, taking damage, dying, equip/unequip (armor), consuming, item drop/pickup, projectile launch/hit, fishing catches, sneak toggle/start, and a periodic `LOOP` trigger
-- **19 built-in action verbs** plus per-activator console commands, a direct message, and potion effects
+- **25 activators** (triggers): right/left/shift-right click, hitting/killing entities, block break/place, taking damage, dying, equip/unequip, consuming, item drop/pickup, projectile launch/hit, fishing catches, sneak toggle/start, sprint start, glide start, join/respawn/world-change, and a periodic `LOOP` trigger
+- **25 built-in action verbs** plus per-activator console commands, a direct message, and potion effects
+- **Mana system**: per-player mana pool with regen and action-bar display; activators cost mana via `mana-cost`
+- **Item levels/XP**: items earn XP from triggers, kills, and block breaks; level-ups rewrite the lore line and fire messages, actions, and commands
+- **Mob drop tables** (`drops.yml`): custom items drop from mobs by chance, with biome/world filters
 - **Item sets** (`sets.yml`): wear N pieces for potion-effect tiers plus message/action/command rewards
 - **Crafting recipes**: shaped/shapeless recipes that produce custom items, with vanilla *or* custom-item ingredients
 - **Item browser GUI** (`/fitems menu`): paginated, rarity-sorted browser; click to take a copy (with `forgeitems.give`)
 - **Rarity tiers**: COMMON → MYTHIC, shown as a colored lore line and used for GUI sorting
 - **Rich per-activator conditions**: sneak state, permission, health range, fire chance, biomes, day/night, weather, light level, target entity type
-- **Per-activator and global cooldowns**, plus the vanilla material `cooldown` action
+- **Per-activator and global cooldowns** with action-bar "ready in Xs" feedback, plus the vanilla material `cooldown` action
 - **Custom durability**: usage limits stored in the item's PersistentDataContainer, with break and uses-left warnings
 - **Soulbound**: `keep-on-death` items are retained through death
 - **Usage gating**: per-item `use-permission` and `restricted-worlds`
@@ -48,7 +52,7 @@ YAML-defined custom items for Paper. Define items in plain YAML files — displa
 
 ## Installation
 
-Drop `ForgeItems-2.0.0.jar` into your server's `plugins/` folder and restart. Five example items (`thunder_hammer`, `frost_bow`, `guardian_chestplate`, `ember_blade`, `ember_chestplate`) are generated into `plugins/ForgeItems/items/` on first run, along with an example `sets.yml` (the Ember Set).
+Drop `ForgeItems-3.0.0.jar` into your server's `plugins/` folder and restart. Five example items (`thunder_hammer`, `frost_bow`, `guardian_chestplate`, `ember_blade`, `ember_chestplate`) are generated into `plugins/ForgeItems/items/` on first run, along with an example `sets.yml` (the Ember Set) and `drops.yml` (ember items from zombies/blazes).
 
 ## Commands
 
@@ -76,11 +80,19 @@ Drop `ForgeItems-2.0.0.jar` into your server's `plugins/` folder and restart. Fi
 settings:
   loop-interval-ticks: 20   # how often the LOOP activator scans players (20 = 1s)
   message-prefix: "<gray>[<gold>ForgeItems<gray>] "
+  cooldown-notify: true     # action-bar "ready in Xs" when an activator is on cooldown
+  mana:
+    enabled: true
+    max-mana: 100.0
+    regen-per-second: 5.0
+    display: actionbar      # actionbar | none (shown while mana is not full)
+    display-format: "<aqua>Mana <white>%mana%<gray>/%max%"
 
 messages:
   reloaded: "<green>ForgeItems reloaded: <white><count> <green>item(s) loaded."
   # ... no-permission, unknown-item, item-given, item-received,
-  #     item-list-header, item-list-entry, item-broken, usage-left
+  #     item-list-header, item-list-entry, item-broken, usage-left,
+  #     cooldown-left (<seconds>), no-mana (<cost>)
 ```
 
 Message placeholders use MiniMessage tags: `<count>`, `<id>`, `<name>`, `<amount>`, `<player>`, `<uses>`.
@@ -116,6 +128,17 @@ restricted-worlds: [world_nether]    # item activators are inert here
 use-permission: "myserver.vip"       # players without it cannot trigger the item
 rarity: EPIC                        # COMMON | UNCOMMON | RARE | EPIC | LEGENDARY | MYTHIC
 set: ember                          # item-set id from sets.yml (bonuses while worn)
+levels:                             # optional XP/leveling for this item
+  max-level: 10
+  xp-base: 40                       # XP for level 1 -> 2; each level costs xp-base * xp-growth^(level-1)
+  xp-growth: 1.6
+  xp-per-trigger: 3                 # XP per activator firing
+  xp-per-kill: 20                   # bonus XP on KILL_ENTITY
+  xp-per-block-break: 5             # bonus XP on BLOCK_BREAK
+  level-up-message: "<red>Your <name> <red>reached level <white><level><red>!"
+  level-up-actions:                 # %level% and %name% available here
+    - "particle minecraft:flame 40 0.6 0.05"
+  level-up-commands: []
 recipe:                             # optional crafting recipe producing this item
   type: shaped                      # shaped | shapeless
   shape:                            # shaped: 1-3 rows
@@ -135,6 +158,7 @@ activators:
     trigger: RIGHT_CLICK             # see trigger list below
     cooldown-seconds: 4
     chance: 1.0                      # 0.0–1.0, default 1.0
+    mana-cost: 10                    # mana per firing; blocked with a no-mana message when short
     cancel-event: true               # cancel the underlying Bukkit event
     consume-use: true                # consume one durability use (default true, false for LOOP)
     conditions:
@@ -206,6 +230,11 @@ sets:
 | `FISH_CAUGHT` | Player catches a fish holding the item |
 | `SNEAK_TOGGLE` | Player toggles sneak holding/wearing the item |
 | `SNEAK_START` | Player starts sneaking holding/wearing the item |
+| `SPRINT_START` | Player starts sprinting holding/wearing the item |
+| `GLIDE_START` | Player starts gliding (elytra) holding/wearing the item |
+| `PLAYER_JOIN` | Player joins holding/wearing the item |
+| `PLAYER_RESPAWN` | Player respawns holding/wearing the item |
+| `WORLD_CHANGE` | Player changes world holding/wearing the item |
 | `LOOP` | Periodic scan while held/worn (see `loop-interval-ticks`) |
 
 ### Action verbs
@@ -233,8 +262,29 @@ Actions run in order. MiniMessage is parsed in `message`/`broadcast`/`title`/`su
 | `extinguish` | `extinguish` | Put out the player |
 | `sudo` | `sudo <command>` | Run a command as the player |
 | `spawnmob` | `spawnmob <type> [count]` | Spawn mobs at the effect location (max 10) |
+| `mana` | `mana <amount>` | Restore (positive) or drain (negative) the player's mana |
+| `giveitem` | `giveitem <id> [amount]` | Give a ForgeItems custom item to the player |
+| `ignite` | `ignite [ticks]` | Set the target (or player) on fire (default 100 ticks) |
+| `freeze` | `freeze [ticks]` | Freeze the target (or player, default 100 ticks) |
+| `clearpotion` | `clearpotion [effect]` | Clear one effect, or all when omitted |
+| `fly` | `fly <on\|off\|toggle>` | Toggle flight for the player |
 
 The effect location is the trigger location, else the target's location, else the player's.
+
+### drops.yml
+
+Mob drop tables: custom items dropped by mobs, with optional biome/world filters.
+
+```yaml
+drops:
+  - mob: ZOMBIE
+    item: ember_blade
+    chance: 0.03          # per kill, 0.0-1.0
+    min-amount: 1
+    max-amount: 1
+    biomes: [plains]      # optional
+    worlds: [world]       # optional
+```
 
 ## Building from source
 
@@ -248,7 +298,7 @@ The build uses `javac` directly (the Gradle daemon cannot run in this sandbox):
 - Dependencies from `~/workspace/.toolchains/paper-deps/` (Paper API 26.3.build.35-alpha)
 - Compiled with `-Werror -Xlint:deprecation`, so warnings fail the build
 
-Output: `ForgeItems-2.0.0.jar`.
+Output: `ForgeItems-3.0.0.jar`.
 
 ## Code quality
 

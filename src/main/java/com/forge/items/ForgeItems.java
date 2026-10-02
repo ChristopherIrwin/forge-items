@@ -1,6 +1,7 @@
 package com.forge.items;
 
 import java.io.File;
+import java.util.List;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -9,28 +10,37 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class ForgeItems extends JavaPlugin {
     private ItemRegistry registry;
     private CooldownManager cooldowns;
+    private ManaManager mana;
     private ActionExecutor actions;
     private ItemListener listener;
     private SetBonusManager setBonuses;
+    private ItemLevelManager levels;
+    private DropManager drops;
     private ItemBrowserGui browser;
     private int itemCount;
     private int setCount;
+    private int dropCount;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         registry = new ItemRegistry(this);
         cooldowns = new CooldownManager();
-        actions = new ActionExecutor(getLogger());
+        mana = new ManaManager(this);
+        actions = new ActionExecutor(this);
+        levels = new ItemLevelManager(this, actions);
         listener = new ItemListener(this, registry, cooldowns, actions);
         setBonuses = new SetBonusManager(this, registry, actions, cooldowns);
+        drops = new DropManager(registry);
         browser = new ItemBrowserGui(this);
 
         reloadItems();
 
-        getServer().getPluginManager().registerEvents(listener, this);
-        getServer().getPluginManager().registerEvents(setBonuses, this);
-        getServer().getPluginManager().registerEvents(browser, this);
+        var pm = getServer().getPluginManager();
+        pm.registerEvents(listener, this);
+        pm.registerEvents(setBonuses, this);
+        pm.registerEvents(drops, this);
+        pm.registerEvents(browser, this);
         var command = new ForgeItemsCommand(this);
         var cmd = getCommand("forgeitems");
         if (cmd != null) {
@@ -39,9 +49,10 @@ public final class ForgeItems extends JavaPlugin {
         }
         listener.startLoopTask();
         setBonuses.start();
+        mana.start();
 
-        getLogger().info("ForgeItems 2.0.0 enabled with " + itemCount + " item(s) and "
-                + setCount + " set(s).");
+        getLogger().info("ForgeItems 3.0.0 enabled with " + itemCount + " item(s), "
+                + setCount + " set(s) and " + dropCount + " mob drop(s).");
     }
 
     @Override
@@ -65,14 +76,24 @@ public final class ForgeItems extends JavaPlugin {
         if (!setsFile.exists()) {
             saveResource("sets.yml", false);
         }
+        File dropsFile = new File(getDataFolder(), "drops.yml");
+        if (!dropsFile.exists()) {
+            saveResource("drops.yml", false);
+        }
         itemCount = registry.loadAll(dir);
         setCount = registry.loadSets(setsFile);
+        List<DropManager.MobDrop> mobDrops = registry.loadDrops(dropsFile);
+        drops.setDrops(mobDrops);
+        dropCount = mobDrops.size();
         registry.registerRecipes();
         // Validate every action line so typos surface at load, not mid-fight.
         for (String id : registry.ids()) {
             CustomItem item = registry.get(id);
             for (Activator act : item.activators().values()) {
                 actions.validate(item.id(), act.name(), act.actions());
+            }
+            if (item.levels() != null) {
+                actions.validate(item.id(), "level-up", item.levels().levelUpActions());
             }
         }
         for (SetBonus bonus : registry.setBonuses().values()) {
@@ -84,8 +105,11 @@ public final class ForgeItems extends JavaPlugin {
     }
 
     public ItemRegistry registry() { return registry; }
+    public ManaManager mana() { return mana; }
+    public ItemLevelManager levels() { return levels; }
     public int itemCount() { return itemCount; }
     public int setCount() { return setCount; }
+    public int dropCount() { return dropCount; }
     public ItemBrowserGui browser() { return browser; }
 
     /** Plain-text version of an item's display name (for messages). */
@@ -94,6 +118,17 @@ public final class ForgeItems extends JavaPlugin {
             return item.id();
         }
         return PlainTextComponentSerializer.plainText().serialize(item.name());
+    }
+
+    /** A configured message with prefix and <placeholder> replacement, with a fallback. */
+    public Component prefixedOr(String key, String fallback, String... pairs) {
+        String prefix = getConfig().getString("settings.message-prefix", "");
+        String raw = getConfig().getString(key, fallback);
+        String resolved = raw;
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
+            resolved = resolved.replace("<" + pairs[i] + ">", pairs[i + 1]);
+        }
+        return TextUtil.parse(prefix + resolved);
     }
 
     /** A configured message with prefix and %placeholder% replacement. */

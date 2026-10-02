@@ -30,15 +30,20 @@ import org.bukkit.potion.PotionEffectType;
  *   sound &lt;key&gt; [volume] [pitch] |
  *   particle &lt;key&gt; [count] [spread] [speed] |
  *   title &lt;MiniMessage&gt; | subtitle &lt;MiniMessage&gt; | actionbar &lt;MiniMessage&gt; |
+ *   particle &lt;key&gt; [count] [spread] [speed] |
+ *   title &lt;MiniMessage&gt; | subtitle &lt;MiniMessage&gt; | actionbar &lt;MiniMessage&gt; |
  *   feed [amount] | extinguish | sudo &lt;player command&gt; |
- *   spawnmob &lt;type&gt; [count]
+ *   spawnmob &lt;type&gt; [count] | mana &lt;amount&gt; | giveitem &lt;id&gt; [amount] |
+ *   ignite [ticks] | freeze [ticks] | clearpotion [effect] | fly &lt;on|off|toggle&gt;
  * Unknown verbs are logged once as warnings at item-load time (see validate()).
  */
 public final class ActionExecutor {
+    private final ForgeItems plugin;
     private final Logger log;
 
-    public ActionExecutor(Logger log) {
-        this.log = log;
+    public ActionExecutor(ForgeItems plugin) {
+        this.plugin = plugin;
+        this.log = plugin.getLogger();
     }
 
     /** Checks action lines for unknown verbs; returns true if all are known. */
@@ -50,7 +55,8 @@ public final class ActionExecutor {
                 case "damage", "heal", "launch", "lightning", "explode", "potion",
                      "message", "broadcast", "command", "cooldown", "sound",
                      "particle", "title", "subtitle", "actionbar", "feed",
-                     "extinguish", "sudo", "spawnmob" -> { /* known */ }
+                     "extinguish", "sudo", "spawnmob", "mana", "giveitem",
+                     "ignite", "freeze", "clearpotion", "fly" -> { /* known */ }
                 default -> {
                     log.warning("Item '" + itemId + "' activator '" + activatorName
                             + "': unknown action '" + verb + "' — it will be skipped at runtime.");
@@ -181,6 +187,74 @@ public final class ActionExecutor {
                     count = Math.max(1, Math.min(10, count));
                     for (int i = 0; i < count; i++) {
                         player.getWorld().spawnEntity(ctx.effectLocation(), type);
+                    }
+                }
+                case "mana" -> {
+                    double amount = rest.isEmpty() ? 0 : parseDouble(rest.split("\\s+")[0], 0);
+                    ManaManager mana = plugin.mana();
+                    if (amount >= 0) {
+                        mana.give(player, amount);
+                    } else {
+                        mana.take(player, -amount);
+                    }
+                }
+                case "giveitem" -> {
+                    String[] args = rest.split("\\s+");
+                    if (args.length < 1 || args[0].isEmpty()) break;
+                    CustomItem def = plugin.registry().get(args[0]);
+                    if (def == null) {
+                        log.warning("Unknown item '" + args[0] + "' in action '" + line + "'.");
+                        break;
+                    }
+                    int amount = args.length > 1 ? parseInt(args[1], 1) : 1;
+                    amount = Math.max(1, Math.min(64, amount));
+                    var leftover = player.getInventory().addItem(plugin.registry().build(def, amount));
+                    for (var drop : leftover.values()) {
+                        player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                    }
+                }
+                case "ignite" -> {
+                    int ticks = rest.isEmpty() ? 100 : parseInt(rest.split("\\s+")[0], 100);
+                    Entity target = ctx.target() != null ? ctx.target() : player;
+                    target.setFireTicks(Math.max(0, ticks));
+                }
+                case "freeze" -> {
+                    int ticks = rest.isEmpty() ? 100 : parseInt(rest.split("\\s+")[0], 100);
+                    LivingEntity target = ctx.target() instanceof LivingEntity le ? le : player;
+                    target.setFreezeTicks(Math.max(0, ticks));
+                }
+                case "clearpotion" -> {
+                    if (rest.isEmpty()) {
+                        for (PotionEffect active : player.getActivePotionEffects()) {
+                            player.removePotionEffect(active.getType());
+                        }
+                    } else {
+                        PotionEffectType type = ItemRegistry.effectType(rest.split("\\s+")[0]);
+                        if (type != null) {
+                            player.removePotionEffect(type);
+                        }
+                    }
+                }
+                case "fly" -> {
+                    String mode = rest.isEmpty() ? "toggle" : rest.split("\\s+")[0].toLowerCase(Locale.ROOT);
+                    switch (mode) {
+                        case "on" -> {
+                            player.setAllowFlight(true);
+                            player.setFlying(true);
+                        }
+                        case "off" -> {
+                            player.setFlying(false);
+                            player.setAllowFlight(false);
+                        }
+                        default -> { // toggle
+                            if (player.isFlying()) {
+                                player.setFlying(false);
+                                player.setAllowFlight(false);
+                            } else {
+                                player.setAllowFlight(true);
+                                player.setFlying(true);
+                            }
+                        }
                     }
                 }
                 default -> { /* validated at load; ignore silently */ }

@@ -132,12 +132,8 @@ public final class SetBonusManager implements Listener {
         if (def == null) {
             return;
         }
-        Activator synthetic = new Activator(
-                "set-bonus", Trigger.SET_BONUS, 0, 1.0, false, false,
-                null, null, 0, Double.MAX_VALUE,
-                java.util.Set.of(), Activator.TimeMode.ANY, Activator.WeatherMode.ANY,
-                0, 15, java.util.Set.of(),
-                tier.actions(), tier.commands(), null, null, List.of());
+        Activator synthetic = Activator.synthetic(
+                "set-bonus", Trigger.SET_BONUS, tier.actions(), tier.commands());
         actions.execute(new ActivationContext(player, def, synthetic, piece, null, null));
     }
 

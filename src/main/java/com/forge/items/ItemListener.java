@@ -24,15 +24,19 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
+import org.bukkit.event.player.PlayerToggleSprintEvent;
 import org.bukkit.event.Event.Result;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -41,7 +45,7 @@ import com.destroystokyo.paper.event.player.PlayerArmorChangeEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Wires all 14 ForgeItems triggers to Bukkit/Paper events, plus soulbound
+ * Wires all 25 ForgeItems triggers to Bukkit/Paper events, plus soulbound
  * handling and the LOOP scan task.
  */
 public final class ItemListener implements Listener {
@@ -50,6 +54,8 @@ public final class ItemListener implements Listener {
     private final CooldownManager cooldowns;
     private final ActionExecutor actions;
     private final Map<UUID, List<ItemStack>> soulboundStash = new HashMap<>();
+    /** Throttle keys for cooldown/mana notices (avoids action-bar spam). */
+    private final Map<String, Long> lastNotice = new HashMap<>();
     private final Random random = new Random();
 
     /** Result of attempting to fire activators for one trigger. */
@@ -97,8 +103,16 @@ public final class ItemListener implements Listener {
             UUID uuid = player.getUniqueId();
             String key = CooldownManager.key(item.id(), act.name());
             String globalKey = CooldownManager.key(item.id(), "global");
-            if (!cooldowns.ready(uuid, key, act.cooldownSeconds())
-                    || !cooldowns.ready(uuid, globalKey, item.globalCooldownSeconds())) {
+            double left = Math.max(
+                    cooldowns.remaining(uuid, key, act.cooldownSeconds()),
+                    cooldowns.remaining(uuid, globalKey, item.globalCooldownSeconds()));
+            if (left > 0) {
+                notifyCooldown(player, key, left);
+                continue;
+            }
+            ManaManager mana = plugin.mana();
+            if (act.manaCost() > 0 && mana.enabled() && !mana.has(player, act.manaCost())) {
+                notifyNoMana(player, act);
                 continue;
             }
             if (random.nextDouble() >= act.chance()) {
@@ -106,6 +120,9 @@ public final class ItemListener implements Listener {
             }
             cooldowns.set(uuid, key, act.cooldownSeconds());
             cooldowns.set(uuid, globalKey, item.globalCooldownSeconds());
+            if (act.manaCost() > 0 && mana.enabled()) {
+                mana.take(player, act.manaCost());
+            }
             actions.execute(new ActivationContext(player, item, act, stack, target, location));
             fired = true;
             if (act.cancelEvent()) {
@@ -114,8 +131,54 @@ public final class ItemListener implements Listener {
             if (act.consumeUse() && item.usageLimit() > 0 && slot >= 0) {
                 consumeUse(player, slot, stack, item);
             }
+            if (item.levels() != null && slot >= 0) {
+                int xp = item.levels().xpPerTrigger();
+                if (trigger == Trigger.KILL_ENTITY) {
+                    xp += item.levels().xpPerKill();
+                } else if (trigger == Trigger.BLOCK_BREAK) {
+                    xp += item.levels().xpPerBlockBreak();
+                }
+                if (xp > 0) {
+                    plugin.levels().awardXp(player, slot, stack, item, xp);
+                }
+            }
         }
         return new FireResult(fired, cancel);
+    }
+
+    /** True when a notice was sent too recently (1.5s throttle per key). */
+    private boolean throttled(String key) {
+        if (lastNotice.size() > 2000) {
+            lastNotice.clear();
+        }
+        long now = System.currentTimeMillis();
+        Long last = lastNotice.get(key);
+        if (last != null && now - last < 1500) {
+            return true;
+        }
+        lastNotice.put(key, now);
+        return false;
+    }
+
+    private void notifyCooldown(Player player, String key, double secondsLeft) {
+        if (!plugin.getConfig().getBoolean("settings.cooldown-notify", true)) {
+            return;
+        }
+        if (throttled(player.getUniqueId() + ":" + key + ":cd")) {
+            return;
+        }
+        player.sendActionBar(plugin.prefixedOr("messages.cooldown-left",
+                "<gray>Ready in <white><seconds>s",
+                "seconds", String.valueOf(Math.round(secondsLeft * 10.0) / 10.0)));
+    }
+
+    private void notifyNoMana(Player player, Activator act) {
+        if (throttled(player.getUniqueId() + ":" + act.name() + ":mana")) {
+            return;
+        }
+        player.sendMessage(plugin.prefixedOr("messages.no-mana",
+                "<red>Not enough mana! <gray>(need <white><cost><gray>)",
+                "cost", String.valueOf((int) act.manaCost())));
     }
 
     private boolean conditionsMet(Player player, Activator act, @Nullable Entity target) {
@@ -449,6 +512,39 @@ public final class ItemListener implements Listener {
         }
         tryActivate(player, slot, holder[0], Trigger.FISH_CAUGHT,
                 event.getCaught(), event.getHook().getLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onSprintToggle(PlayerToggleSprintEvent event) {
+        if (!event.isSprinting()) {
+            return;
+        }
+        scanSlots(event.getPlayer(), Trigger.SPRINT_START, null, event.getPlayer().getLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onGlideToggle(EntityToggleGlideEvent event) {
+        if (!(event.getEntity() instanceof Player player) || !event.isGliding()) {
+            return;
+        }
+        scanSlots(player, Trigger.GLIDE_START, null, player.getLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        scanSlots(player, Trigger.PLAYER_JOIN, null, player.getLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onRespawnScan(PlayerRespawnEvent event) {
+        scanSlots(event.getPlayer(), Trigger.PLAYER_RESPAWN, null, event.getRespawnLocation());
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onWorldChange(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        scanSlots(player, Trigger.WORLD_CHANGE, null, player.getLocation());
     }
 
     // -------------------------------------------------------------- soulbound

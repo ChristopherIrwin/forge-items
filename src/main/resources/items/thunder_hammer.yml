@@ -17,10 +17,21 @@ unbreakable: true
 max-stack-size: 1
 keep-on-death: true
 usage-limit: 250
+levels:
+  max-level: 5
+  xp-base: 50
+  xp-growth: 1.8
+  xp-per-trigger: 4
+  xp-per-kill: 25
+  level-up-message: "<gold>Your <name> <gold>reached level <white><level><gold>!"
+  level-up-actions:
+    - "particle minecraft:totem_of_undying 30 0.5 0.1"
+    - "title <gold>Level <level>!"
 activators:
   zap:
     trigger: RIGHT_CLICK
     cooldown-seconds: 4
+    mana-cost: 10
     actions:
       - "lightning"
       - "message <yellow>⚡ Zap!"
@@ -29,6 +40,7 @@ activators:
     trigger: SHIFT_RIGHT_CLICK
     cooldown-seconds: 8
     chance: 1.0
+    mana-cost: 30
     actions:
       - "lightning"
       - "explode 3"

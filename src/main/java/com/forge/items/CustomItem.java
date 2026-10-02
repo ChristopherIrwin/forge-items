@@ -27,6 +27,17 @@ public final class CustomItem {
         }
     }
 
+    /** Level/XP configuration; null when the item does not level. */
+    public record ItemLevels(int maxLevel, double xpBase, double xpGrowth,
+            int xpPerTrigger, int xpPerKill, int xpPerBlockBreak,
+            @Nullable String levelUpMessage, List<String> levelUpActions,
+            List<String> levelUpCommands) {
+        public ItemLevels {
+            levelUpActions = List.copyOf(levelUpActions);
+            levelUpCommands = List.copyOf(levelUpCommands);
+        }
+    }
+
     private final String id;
     private final Material material;
     private final Component name;
@@ -50,6 +61,7 @@ public final class CustomItem {
     private final Rarity rarity;
     private final String setId;
     private final ItemRecipe recipe;
+    private final ItemLevels levels;
     private final Map<String, Activator> activators;
 
     @SuppressWarnings("java:S107") // many fields are inherent to an item definition
@@ -61,6 +73,7 @@ public final class CustomItem {
             @Nullable String usePermission, boolean consumable, float consumeSeconds,
             int foodNutrition, float foodSaturation, Rarity rarity,
             @Nullable String setId, @Nullable ItemRecipe recipe,
+            @Nullable ItemLevels levels,
             Map<String, Activator> activators) {
         this.id = id;
         this.material = material;
@@ -85,6 +98,7 @@ public final class CustomItem {
         this.rarity = rarity;
         this.setId = setId;
         this.recipe = recipe;
+        this.levels = levels;
         this.activators = Map.copyOf(activators);
     }
 
@@ -117,6 +131,8 @@ public final class CustomItem {
     public @Nullable String setId() { return setId; }
     /** Crafting recipe, or null when the item has none. */
     public @Nullable ItemRecipe recipe() { return recipe; }
+    /** Level/XP config, or null when the item does not level. */
+    public @Nullable ItemLevels levels() { return levels; }
     public Map<String, Activator> activators() { return activators; }
 
     /**

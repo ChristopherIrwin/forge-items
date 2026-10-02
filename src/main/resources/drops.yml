@@ -1,0 +1,15 @@
+# ForgeItems mob drop tables: custom items dropped by mobs.
+# chance is 0.0-1.0 per kill; biomes/worlds are optional filters.
+drops:
+  - mob: ZOMBIE
+    item: ember_blade
+    chance: 0.03
+    min-amount: 1
+    max-amount: 1
+    biomes: [plains, minecraft:forest]
+  - mob: BLAZE
+    item: ember_chestplate
+    chance: 0.05
+    min-amount: 1
+    max-amount: 1
+    worlds: [world_nether]

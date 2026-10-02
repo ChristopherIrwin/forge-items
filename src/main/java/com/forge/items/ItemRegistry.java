@@ -27,6 +27,7 @@ import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.EntityType;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.RecipeChoice;
@@ -239,15 +240,23 @@ public final class ItemRegistry {
         return get(getItemId(stack));
     }
 
+    /** Canonical lore: base lore, then the level line (leveled items), then rarity. */
+    static List<Component> loreFor(CustomItem def, int level) {
+        List<Component> lore = new ArrayList<>(def.lore());
+        if (def.levels() != null) {
+            lore.add(TextUtil.parse("<gray>Level: <white>" + level));
+        }
+        lore.add(TextUtil.parse("<gray>Rarity: " + def.rarity().loreLine()));
+        return lore;
+    }
+
     /** Builds a fresh ItemStack for the given definition, tagged with its id. */
     public ItemStack build(CustomItem def, int amount) {
         ItemStack stack = new ItemStack(def.material(), Math.max(1, amount));
         if (def.name() != null) {
             stack.setData(DataComponentTypes.CUSTOM_NAME, def.name());
         }
-        List<Component> fullLore = new ArrayList<>(def.lore());
-        fullLore.add(TextUtil.parse("<gray>Rarity: " + def.rarity().loreLine()));
-        stack.setData(DataComponentTypes.LORE, ItemLore.lore(fullLore));
+        stack.setData(DataComponentTypes.LORE, ItemLore.lore(loreFor(def, 1)));
         if (!def.enchantments().isEmpty()) {
             stack.setData(DataComponentTypes.ENCHANTMENTS, ItemEnchantments.itemEnchantments(def.enchantments()));
         }
@@ -438,6 +447,7 @@ public final class ItemRegistry {
                         trigger,
                         a.getDouble("cooldown-seconds", 0),
                         a.getDouble("chance", 1.0),
+                        Math.max(0, a.getDouble("mana-cost", 0)),
                         a.getBoolean("cancel-event", false),
                         a.getBoolean("consume-use", trigger != Trigger.LOOP),
                         sneaking,
@@ -481,6 +491,7 @@ public final class ItemRegistry {
             }
         }
         CustomItem.ItemRecipe recipe = parseRecipe(cfg.getConfigurationSection("recipe"), id);
+        CustomItem.ItemLevels levels = parseLevels(cfg.getConfigurationSection("levels"));
 
         return new CustomItem(
                 id, material, name, lore, enchantments, attributes,
@@ -490,7 +501,7 @@ public final class ItemRegistry {
                 worlds, cfg.isString("use-permission") ? cfg.getString("use-permission") : null,
                 consumable, consumeSeconds,
                 cfg.getInt("food.nutrition", 0), (float) cfg.getDouble("food.saturation", 0),
-                rarity, setId, recipe,
+                rarity, setId, recipe, levels,
                 activators);
     }
 
@@ -560,6 +571,72 @@ public final class ItemRegistry {
                     + raw + "' — ignored.");
             return Activator.WeatherMode.ANY;
         }
+    }
+
+    /** Parses the optional levels section; null when absent. */
+    private static @Nullable CustomItem.ItemLevels parseLevels(
+            @Nullable ConfigurationSection lSec) {
+        if (lSec == null) {
+            return null;
+        }
+        return new CustomItem.ItemLevels(
+                Math.max(1, lSec.getInt("max-level", 10)),
+                Math.max(1, lSec.getDouble("xp-base", 100)),
+                Math.max(1.0, lSec.getDouble("xp-growth", 1.6)),
+                Math.max(0, lSec.getInt("xp-per-trigger", 0)),
+                Math.max(0, lSec.getInt("xp-per-kill", 0)),
+                Math.max(0, lSec.getInt("xp-per-block-break", 0)),
+                lSec.isString("level-up-message") ? lSec.getString("level-up-message") : null,
+                lSec.getStringList("level-up-actions"),
+                lSec.getStringList("level-up-commands"));
+    }
+
+    /** (Re)loads drops.yml. Returns the entries loaded (invalid ones warn and skip). */
+    public List<DropManager.MobDrop> loadDrops(java.io.File file) {
+        List<DropManager.MobDrop> out = new ArrayList<>();
+        if (!file.exists()) {
+            return out;
+        }
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+        for (Object o : cfg.getList("drops", List.of())) {
+            if (!(o instanceof Map<?, ?> m)) {
+                continue;
+            }
+            EntityType mob;
+            try {
+                mob = EntityType.valueOf(String.valueOf(m.get("mob")).toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                log.warning("drops.yml: unknown mob '" + m.get("mob") + "' — skipped.");
+                continue;
+            }
+            String itemId = String.valueOf(m.get("item"));
+            if (get(itemId) == null) {
+                log.warning("drops.yml: unknown item '" + itemId + "' — skipped.");
+                continue;
+            }
+            double chance = m.get("chance") instanceof Number n ? n.doubleValue() : 0;
+            if (chance <= 0 || chance > 1) {
+                log.warning("drops.yml: chance for '" + itemId + "' must be 0-1 — skipped.");
+                continue;
+            }
+            int min = m.get("min-amount") instanceof Number n ? Math.max(1, n.intValue()) : 1;
+            int max = m.get("max-amount") instanceof Number n ? Math.max(min, n.intValue()) : min;
+            Set<String> biomes = new HashSet<>();
+            if (m.get("biomes") instanceof List<?> biomeList) {
+                for (Object b : biomeList) {
+                    biomes.add(String.valueOf(b).toLowerCase(Locale.ROOT));
+                }
+            }
+            Set<String> worlds = new HashSet<>();
+            if (m.get("worlds") instanceof List<?> worldList) {
+                for (Object w : worldList) {
+                    worlds.add(String.valueOf(w).toLowerCase(Locale.ROOT));
+                }
+            }
+            out.add(new DropManager.MobDrop(mob, itemId.toLowerCase(Locale.ROOT),
+                    chance, min, max, biomes, worlds));
+        }
+        return out;
     }
 
     /** Parses the optional recipe section; null when absent or invalid (caller logs). */
