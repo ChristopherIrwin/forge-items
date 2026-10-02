@@ -1,0 +1,25 @@
+id: frost_bow
+material: BOW
+name: "<gradient:#bfefff:#4fa8ff>Frost Bow</gradient>"
+lore:
+  - "<gray>Arrows chill their target to the bone."
+  - "<gray>Launch: chilling winds guide your shot"
+  - "<gray>Hit: slows the target"
+enchantments:
+  minecraft:power: 3
+unbreakable: true
+max-stack-size: 1
+keep-on-death: false
+usage-limit: 500
+activators:
+  chilling_winds:
+    trigger: PROJECTILE_LAUNCH
+    cooldown-seconds: 2
+    actions:
+      - "message <aqua>Chilling winds guide your arrow..."
+  deep_freeze:
+    trigger: PROJECTILE_HIT
+    cooldown-seconds: 3
+    actions:
+      - "potion minecraft:slowness 100 2"
+      - "message <aqua>❄ Deep freeze!"

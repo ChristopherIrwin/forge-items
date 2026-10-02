@@ -1,0 +1,17 @@
+# ForgeItems configuration
+settings:
+  # How often (in ticks) the LOOP activator scans players. 20 = once per second.
+  loop-interval-ticks: 20
+  # Prefix used on all plugin messages.
+  message-prefix: "<gray>[<gold>ForgeItems<gray>] "
+
+messages:
+  reloaded: "<green>ForgeItems reloaded: <white><count> <green>item(s) loaded."
+  no-permission: "<red>You don't have permission to do that."
+  unknown-item: "<red>Unknown item: <white><id>"
+  item-given: "<green>Gave <white><amount>x <name> <green>to <white><player><green>."
+  item-received: "<green>You received <white><amount>x <name><green>."
+  item-list-header: "<gold>ForgeItems (<count>):"
+  item-list-entry: "<gray>- <white><id> <gray>(<name><gray>)"
+  item-broken: "<red>Your <name> <red>has broken!"
+  usage-left: "<yellow><uses> uses left on your <name><yellow>."
